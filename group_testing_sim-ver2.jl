@@ -7,11 +7,7 @@ function get_inc()
     t_inc  = max(2,round(rand(d_inc))) # incubation period sample
     ti_inf = min(t_inc-1,round(rand(Uniform(max(t_inc-3,t_inc/3),t_inc)))) # beginning of infeccious period  -sample
     te_inf = t_inc + round(rand(Uniform(14,28))) # ending of infeccious period - sample
-<<<<<<< HEAD
-    t_rec  = te_inf                    # time until recovery
-=======
     t_rec  = te_inf                     # time until recovery
->>>>>>> c1878bcb4d281be764e5bdff6644f0e6a12bedb6
     return t_inc, ti_inf, te_inf, t_rec
 end
 
@@ -115,24 +111,21 @@ end
 
 
 #Hacer una funcion de probabilidad de contagio en la casa, dependiente de horas, n integrantes
-<<<<<<< HEAD
 # integrantes contagiados y tiempo (pues a futuro se puede detallar las etapas de los
 #contagiados en la casa agregando los tiempos de estos).
-function casa_p(n,n_inf,hr)
-end
 
-=======
+
+
 # integrantes contagiados y tiempo (pues a futuro se puede detallar las etapas de los contagiados en la casa
 #agregando los tiempos de estos).
 function casa_p(n,n_inf,hr)
+return 0.007
 end
 
-#También podria 
->>>>>>> c1878bcb4d281be764e5bdff6644f0e6a12bedb6
 
 
 
-#Funcion que entrega la provavilidad de contagiarte dentro de tu grupo de trabajo
+#Funcion que entrega la probabilidad de contagiarte dentro de tu grupo de trabajo
 #cerrado
 function group_p(G,vp_cont,hr,W)
 	#G: indicatriz del grupo de trabajo
@@ -159,32 +152,26 @@ function group_p(G,vp_cont,hr,W)
 end
 
 
-function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test)
-    S=1 #Cantidad de grupos
+function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test,S)
     #Creacion de un grupo de ejemplo
     for a=1:S
 	global Group
 	if a==1
 		g1=[zeros(Int((a-1)*(N/S)))' ones(Int(N/S))' zeros(Int(N-a*(N/S)))']
 		g2=8
-		g3="low"
+		g3="none"
 		Group=[g1 g2 g3]
 	else
 
 		g1=[zeros(Int((a-1)*(N/S)))' ones(Int(N/S))' zeros(Int(N-a*(N/S)))']
 		g2=8
-		g3="low"
+		g3="none"
 		g=[g1 g2 g3]
 		Group=[Group g]
 	end
     end
-    pcr_M = zeros(N,f) # non-adaptive test matrix
-    if test == true
-        for i=1:f
-            pcr_M[:,i] = [zeros(G*(i-1),1) ; ones(G,1) ; zeros(G*(f-i))]
-        end
-        pcr_M = Int.(pcr_M)
-    end
+
+
 
     mQua = zeros(T)
     mInf = zeros(T)
@@ -232,20 +219,18 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test)
 		info=Group[Int((a-1)*(N+2)+1):Int((a)*(N+2))]
 		g=Int.(info[1:N]) #Indicatriz del grupo
 		hr=info[N+1] #Horas del grupo
-<<<<<<< HEAD
-=======
 		W=info[N+2] #Riesgo del grupo
->>>>>>> c1878bcb4d281be764e5bdff6644f0e6a12bedb6
 		vec=zeros(N) #Vector auxiliar para las probabilidades de los infectados
 		#del grupoo
-		for (i,p) in enumerate(g)
-			if (p==1) & (inf[i]==1) & (qu==0) #Condicion esta en el grupo, infectado
+		for i in findall(g.==1)
+			if (inf[i]==1) & (qu[i]==0) & (re[i]==0) #Condicion esta en el grupo, infectado
 				#y en cuarentena
 				#Recuperacion de los tiempos
-				tinf=findfirst(In[i,:].==1)[2]-findfirst(Su[i,:].==0)[2]
-				tsin=findfirst(Sy[i,:].==1)[2]-findfirst(Su[i,:].==0)[2]
-				trec=findfirst(Re[i,:].==1)[2]-findfirst(Su[i,:].==0)[2]
-				vec[i]=person_p(t,tinf,tsin,trec,0.4) #Se agregan las probabilidades de los enfermos
+				tinf=tIn[Int(i)]-tEx[Int(i)]
+				tsin=tSy[i]-tEx[i]
+				trec=tRe[i]-tEx[i]
+				vec[i]=person_p(t,tinf,tsin,trec,0.05)
+				 #Se agregan las probabilidades de los enfermos
 			end
 		end
 		PG=group_p(g,vec,hr,W) #Vector con probabilidades de contagio dentro del grupo
@@ -270,18 +255,15 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test)
             end
 
             # Testing
-            pcr_v = pcr_M[:,mod(t-1,f)+1] # testing vectror
-            cand = findall(pcr_v .== 1)
-            if test == "random"
-                cand = ((sum(Qu[:,1:t],dims=2)==0) .> 0)
-                s_cand = Random.randperm(sum(cand))
-                cand = findall(cand .==1)# sample G people at random
-                pcr_v = cand[s_cand]
-                pcr_v = pcr_v[1:Int(min(G,end))]
-            end
+	    cand=[]
+		if mod(t-1,f)==0
+	    		if test==true
+		    		cand=shuffle!(findall((-qu.+1).==1))[1:min(G,length(findall((-qu.+1).==1)))]
+	    		end
+		end
             for i in cand
                 if (su[i] == 1) & (rand() < p_false_positive)
-                    Qu[i,min(T,t+1):min(T,t+15)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+                    Qu[i,min(T,t+2):min(T,t+16)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
 					NFpositive+=1
                 end
                 if su[i] == 0
@@ -306,7 +288,7 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test)
     mQua = mQua/R
     mInf = mInf/R
 	mNFpositive=round(mNFpositive/R)
-	mNQincuvacion=round(mNQincubacion/R)
+	mNQincubacion=round(mNQincubacion/R)
 
     return mQua, mInf, mNFpositive, mNQincubacion
 end
@@ -321,28 +303,35 @@ T = 365             # simulation horizon
 #probabilidad de contagiarse desde los pacientes
 γ = 0.30 #(antes 0.25)           # prop of asymtomatic pop
 p_false_positive = 0.01 # probability of a false positive
-R = 500      # Replications
+R = 100     # Replications
+S=20 #Cantidad de grupos
 
-base_mQua, base_mInf, base_mNFp, base_mNQinc = simulation(N, f,G,T,α,β,γ,p_false_positive,R, false)
-ideal_mQua, ideal_mInf, ideal_mNFp, ideal_mNQinc = simulation(N, 1,N,T,α,β,γ,p_false_positive,R, true)
-f10_mQua, f10_mInf, f10_mNFp, f10_mNQinc = simulation(N, f,G,T,α,β,γ,p_false_positive,R, true)
-#r10_mQua, r10_mInf = simulation(N, f,G,T,α,β,γ,p_false_positive,R, "random")
+base_mQua, base_mInf, base_mNFp, base_mNQinc = simulation(N, f,G,T,α,β,γ,p_false_positive,R, false,S)
+ideal_mQua, ideal_mInf, ideal_mNFp, ideal_mNQinc = simulation(N, 1,N,T,α,β,γ,p_false_positive,R, true,S)
+f10_mQua, f10_mInf, f10_mNFp, f10_mNQinc = simulation(N, f,G,T,α,β,γ,p_false_positive,R, true,S)
+f102_mQua, f102_mInf,f102_mNFp,f102_mNQinc = simulation(N, f,N,T,α,β,γ,p_false_positive,R, true,S)
+f1G_mQua, f1G_mInf,f1G_mNFp,f1G_mNQinc = simulation(N, 1,G,T,α,β,γ,p_false_positive,R, true,S)
+
 
 f1 =plot(1:T-1,base_mQua[1:end-1],label ="base", lw=3)
 plot!(1:T-1,ideal_mQua[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f10_mQua[1:end-1],label ="10 fijo", lw=3)
-#plot!(1:T-1,r10_mQua[1:end-1],label ="10 rand", lw=3)
+plot!(1:T-1,f10_mQua[1:end-1],label ="f=10 y G=20", lw=3)
+plot!(1:T-1,f102_mQua[1:end-1],label ="f=10 y G=200 ", lw=3)
+plot!(1:T-1,f1G_mQua[1:end-1],label ="f=1 y G=20 ", lw=3)
 title!("Cuarentena")
 xlabel!("Días")
 ylabel!("# personas")
 
 f2 =plot(1:T-1,base_mInf[1:end-1], label ="base", lw=3)
 plot!(1:T-1,ideal_mInf[1:end-1], label ="ideal", lw=3)
-plot!(1:T-1,f10_mInf[1:end-1], label ="10 fijo", lw=3)
-#plot!(1:T-1,r10_mInf[1:end-1], label ="10 rand", lw=3)
+plot!(1:T-1,f10_mInf[1:end-1], label ="f=10 G=20", lw=3)
+plot!(1:T-1,f102_mInf[1:end-1], label ="f=10 G=200", lw=3)
+plot!(1:T-1,f1G_mInf[1:end-1], label ="f=1 G=20", lw=3)
 title!("Infección")
 xlabel!("Días")
 ylabel!("# personas")
 
+print("Caso: Falsos Positivos - Descubiertos en incubacion ","Base:", base_mNFp,"-",base_mNQinc," Ideal:",ideal_mNFp,"-",ideal_mNQinc," Frecuencia 10 G=20:",f10_mNFp,"-", f10_mNQinc," Frecuencia 10 G=200:",f102_mNFp,"-"
+, f102_mNQinc," Frecuencia 1 G=20:",f1G_mNFp,"-", f1G_mNQinc)
+
 plot(f1,f2, layout = (2,1))
-print("Caso: Falsos Positivos - Descubiertos en incubacion ","Base:", base_mNFp,"-",base_mNQinc," Ideal:",ideal_mNFp,"-",ideal_mNQinc," Frecuencia 10:",f10_mNFp,"-", f10_mNQinc)
