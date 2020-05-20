@@ -159,13 +159,13 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test,S)
 	if a==1
 		g1=[zeros(Int((a-1)*(N/S)))' ones(Int(N/S))' zeros(Int(N-a*(N/S)))']
 		g2=8
-		g3="none"
+		g3="low"
 		Group=[g1 g2 g3]
 	else
 
 		g1=[zeros(Int((a-1)*(N/S)))' ones(Int(N/S))' zeros(Int(N-a*(N/S)))']
 		g2=8
-		g3="none"
+		g3="low"
 		g=[g1 g2 g3]
 		Group=[Group g]
 	end
@@ -229,7 +229,7 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test,S)
 				tinf=tIn[Int(i)]-tEx[Int(i)]
 				tsin=tSy[i]-tEx[i]
 				trec=tRe[i]-tEx[i]
-				vec[i]=person_p(t,tinf,tsin,trec,0.05)
+				vec[i]=person_p(t,tinf,tsin,trec,0.01)
 				 #Se agregan las probabilidades de los enfermos
 			end
 		end
@@ -255,9 +255,12 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test,S)
             end
 
             # Testing
+
+		#Vector de funcionarios que testear
 	    cand=[]
-		if mod(t-1,f)==0
+		if mod(t-1,f)==0 #Se testea cada f dias
 	    		if test==true
+				#Se revuelven las personas que no estan en cuarentena y se toman los G primeros
 		    		cand=shuffle!(findall((-qu.+1).==1))[1:min(G,length(findall((-qu.+1).==1)))]
 	    		end
 		end
@@ -303,7 +306,7 @@ T = 365             # simulation horizon
 #probabilidad de contagiarse desde los pacientes
 γ = 0.30 #(antes 0.25)           # prop of asymtomatic pop
 p_false_positive = 0.01 # probability of a false positive
-R = 100     # Replications
+R = 500     # Replications
 S=20 #Cantidad de grupos
 
 base_mQua, base_mInf, base_mNFp, base_mNQinc = simulation(N, f,G,T,α,β,γ,p_false_positive,R, false,S)
