@@ -7,7 +7,11 @@ function get_inc()
     t_inc  = max(2,round(rand(d_inc))) # incubation period sample
     ti_inf = min(t_inc-1,round(rand(Uniform(max(t_inc-3,t_inc/3),t_inc)))) # beginning of infeccious period  -sample
     te_inf = t_inc + round(rand(Uniform(14,28))) # ending of infeccious period - sample
+<<<<<<< HEAD
     t_rec  = te_inf                    # time until recovery
+=======
+    t_rec  = te_inf                     # time until recovery
+>>>>>>> c1878bcb4d281be764e5bdff6644f0e6a12bedb6
     return t_inc, ti_inf, te_inf, t_rec
 end
 
@@ -111,11 +115,20 @@ end
 
 
 #Hacer una funcion de probabilidad de contagio en la casa, dependiente de horas, n integrantes
+<<<<<<< HEAD
 # integrantes contagiados y tiempo (pues a futuro se puede detallar las etapas de los
 #contagiados en la casa agregando los tiempos de estos).
 function casa_p(n,n_inf,hr)
 end
 
+=======
+# integrantes contagiados y tiempo (pues a futuro se puede detallar las etapas de los contagiados en la casa
+#agregando los tiempos de estos).
+function casa_p(n,n_inf,hr)
+end
+
+#También podria 
+>>>>>>> c1878bcb4d281be764e5bdff6644f0e6a12bedb6
 
 
 
@@ -219,6 +232,10 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test)
 		info=Group[Int((a-1)*(N+2)+1):Int((a)*(N+2))]
 		g=Int.(info[1:N]) #Indicatriz del grupo
 		hr=info[N+1] #Horas del grupo
+<<<<<<< HEAD
+=======
+		W=info[N+2] #Riesgo del grupo
+>>>>>>> c1878bcb4d281be764e5bdff6644f0e6a12bedb6
 		vec=zeros(N) #Vector auxiliar para las probabilidades de los infectados
 		#del grupoo
 		for (i,p) in enumerate(g)
