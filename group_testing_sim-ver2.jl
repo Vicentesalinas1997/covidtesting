@@ -14,7 +14,7 @@ end
 function cubic_spline(x, y)
     # check x are decreasing values
     if sum(x[1:end-1] .- x[2:end] .>= 0) > 0
-        error("vector x no es estrictamente creciente")
+        #error("vector x no es estrictamente creciente")
     end
     # forces second derivatives to be 0 at both ends
     n = length(x) - 1
@@ -80,9 +80,9 @@ end
 function true_positive(t, t_inf, t_sin, t_rec, p_sinto = 0.8)
     # t : dia relativo con respecto a la expocision, tb puede ser un vector
     # vectores de valores conocidos en eje x e y
-    x_vec = vcat([t_inf, (t_inf + t_sin) / 2, t_sin], [t_sin + (t_rec - t_sin) * i / 28 for i in 7:7:42])
+    x_vec = vcat([t_inf,(t_inf + t_sin) / 4,3*(t_inf + t_sin) / 4, t_sin], [t_sin + (t_rec - t_sin) * i / 28 for i in 7:7:42])
     #x_vec = [-7, -3.5,   0,    7,   14,   21,   28,   35,   42]
-    y_vec = [ 0, 0.63, 0.8, 0.79, 0.64, 0.43, 0.19, 0.08, 0.00] * (p_sinto / 0.8)
+    y_vec = [ 0, 0.63, 0.8, 0.79, 0.64, 0.43, 0.19, 0.08, 0.00,0.00] * (p_sinto / 0.8)
     y = cubic_spline_interpolate(t, x_vec, y_vec)
 
     # graficar
@@ -104,7 +104,7 @@ function person_p(t,t_inf,t_sin,t_rec,p_sinto)
     # vectores de valores conocidos en eje x e y
     x_vec = vcat([t_inf, (t_inf + t_sin) / 2, t_sin], [t_sin + (t_rec - t_sin) * i / 28 for i in 7:7:42])
     #x_vec = [-7, -3.5,   0,    7,   14,   21,   28,   35,   42]
-    y_vec = [ 0, 0.63, 0.8, 0.79, 0.64, 0.43, 0.19, 0.08, 0.00] * (p_sinto)
+    y_vec = [ 0, 0.63, 0.8, 0.79, 0.64, 0.43, 0.19, 0.08, 0.00] * (p_sinto/0.8)
     y = cubic_spline_interpolate(t, x_vec, y_vec)
     return y
 end
@@ -140,14 +140,14 @@ function group_p(G,vp_cont,hr,W)
 		return p
 	end
 	if W=="low"
-		return min(1,p+0.01) #Esta probabilidades estan sin ninguna justificacion
+		return 1-(1-p)*(1-0.01) #Esta probabilidades estan sin ninguna justificacion
 		#podria depender de las horas de atencion a publico y medidas de seguridad
 	end
 	if W=="medium"
-		return min(1,p+0.05)
+		return 1-(1-p)*(1-0.05)
 	end
 	if W=="high"
-		return min(1,p+0.1)
+		return 1-(1-p)*(1-0.1)
 	end
 end
 
@@ -215,6 +215,7 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test,S)
 
 
 	    new_inf=zeros(N) #Vector de los nuevos infectados
+	    con=0 #Cuantos grupos hay para hacer poll testing
 	    for a=1:S
 		info=Group[Int((a-1)*(N+2)+1):Int((a)*(N+2))]
 		g=Int.(info[1:N]) #Indicatriz del grupo
@@ -229,16 +230,35 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test,S)
 				tinf=tIn[Int(i)]-tEx[Int(i)]
 				tsin=tSy[i]-tEx[i]
 				trec=tRe[i]-tEx[i]
-				vec[i]=person_p(t,tinf,tsin,trec,0.01)
+				vec[i]=person_p(t,tinf,tsin,trec,0.1)
 				 #Se agregan las probabilidades de los enfermos
 			end
 		end
 		PG=group_p(g,vec,hr,W) #Vector con probabilidades de contagio dentro del grupo
 		r=rand(N)
 		#Reemplazar el beta y 1.2 beta por una probabilidad de contagio en casa idividual.
-		new_inf+=(-qu.+1).*su.*g.*(r.<(PG.+β)) #Vector de infectados entre todo el hospital
-		new_inf+=qu.*su.*g.*(r.<β+0.01) #Sumar infectados en cuarentena (falsos positivos
+		new_inf+=(-qu.+1).*su.*g.*(r.<(1-(1-PG)*(1-β))) #Vector de infectados entre todo el hospital
+		new_inf+=qu.*su.*g.*(r.<(1.01*β)) #Sumar infectados en cuarentena (falsos positivos
 		#que se contagian en casa,por lo que la probabilidad de casa deberia aumentar)
+
+
+
+
+		#Para el poll test
+		I=( sum(Sy[:,1:max((t-2),1)],dims=2).==0 ).*(-qu.+1).*collect(1:N)
+		JJ=shuffle!(g.*I)
+		III=setdiff(JJ,[0])
+		if length(III)==0
+			con+=0
+		else
+			ind=Int(round(length(III)/5))
+			r=length(III)%5
+			con+=(ind+(r!=0))
+		end
+
+
+
+
 	   end
            for i in findall(new_inf.==1)                   # cicle over newly infected
                	t_inc, ti_inf, te_inf, t_rec = get_inc()
@@ -258,30 +278,118 @@ function simulation(N, f,G,T,α,β,γ,p_false_positive,R,test,S)
 
 		#Vector de funcionarios que testear
 	    cand=[]
+
 		if mod(t-1,f)==0 #Se testea cada f dias
 	    		if test==true
-				#Se revuelven las personas que no estan en cuarentena y se toman los G primeros
-		    		cand=shuffle!(findall((-qu.+1).==1))[1:min(G,length(findall((-qu.+1).==1)))]
+				I=( sum(Sy[:,1:max((t-2),1)],dims=2).==0 ).*(-qu.+1).*collect(1:N)
+				J=shuffle!(I)
+				II=setdiff(J,[0])
+				cand=Int.(II[1:min(G,length(II))])
 	    		end
+
+			if test=="poll"
+				h=shuffle!(collect(1:con))[1:min(G,con)]
+				b=sort(h)
+				for a=1:S
+					info=Group[Int((a-1)*(N+2)+1):Int((a)*(N+2))]
+					g=Int.(info[1:N]) #Indicatriz del grupo
+					I=( sum(Sy[:,1:max((t-2),1)],dims=2).==0 ).*(-qu.+1).*collect(1:N)
+					JJ=shuffle!(g.*I)
+					III=setdiff(JJ,[0])
+
+					if length(III)>=1
+						ind=Int(floor(length(III)/5))
+						r=length(III)%5
+						lim=(ind+(r!=0))
+						c=setdiff((b.<=lim).*(b.>=1).*b,[0])
+
+						if length(c)>=1
+							b.-lim
+							for cc in c
+
+								if cc-1==ind
+
+									cand=Int.(III[5*ind+1:5*ind+r])
+
+								else
+
+									cand=Int.(III[5*(cc-1)+1:5*cc])
+
+								end
+								#hacer poll testing
+								s=0
+								pp=1
+								for i in cand
+									p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1)
+									s+=su[i]
+									pp=pp*(1-(1-su[i])*p_positive)
+
+								end
+								PP=1-pp
+								for i in cand
+									if s==length(cand) & (rand() < (p_false_positive)^s)
+										if su[i]==1 & (rand() < p_false_positive^s)
+                    									Qu[i,min(T,t+2):min(T,t+16)] .= 1 #if someone tests (false) positive, quarantined for 2 weeks
+											NFpositive+=1
+										end
+									else
+										if (rand()<=PP) & (s<=(length(cand)-1))
+                									if su[i] == 0
+                    										if (qu[i] == 0) & (sum(Qu[i,1:t])==0)
+                        										p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1)
+                        										if rand() < p_positive
+                            											Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+														if ex[i]==1 #Esta en incubacion
+															NQincubacion+=1
+														end
+													end
+                        									end
+                    									else
+												if (rand() < p_false_positive^s)
+                    											Qu[i,min(T,t+2):min(T,t+16)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+													NFpositive+=1
+												end
+											end
+										end
+                							end
+            							end
+
+
+
+
+
+							end
+						end
+
+
+					end
+
+				end
+			end
 		end
-            for i in cand
-                if (su[i] == 1) & (rand() < p_false_positive)
-                    Qu[i,min(T,t+2):min(T,t+16)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
-					NFpositive+=1
-                end
-                if su[i] == 0
-                    if (qu[i] == 0) & (sum(Qu[i,1:t])==0)
-                        p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1)
-                        if rand() < p_positive
-                            Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+
+
+	if test!="poll"
+		for i in cand
+                	if (su[i] == 1) & (rand() < p_false_positive)
+                    		Qu[i,min(T,t+2):min(T,t+16)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+				NFpositive+=1
+                	end
+                	if su[i] == 0
+                    		if (qu[i] == 0) & (sum(Qu[i,1:t])==0)
+                        		p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1)
+                        		if rand() < p_positive
+                            			Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
 							if ex[i]==1 #Esta en incubacion
 								NQincubacion+=1
 							end
-                        end
-                    end
-                end
-            end
+                        		end
+                    		end
+                	end
+            	end
+
         end
+end
         mQua .+= dropdims(sum(Qu,dims=1),dims=1)
         mInf .+= dropdims(sum((1 .- Qu) .* In,dims=1),dims=1)
 		mNFpositive+=NFpositive
@@ -300,13 +408,13 @@ end
 N = 200             # Tamaño grupo de trabajadores
 f = 10              # Frecuencia testeo (cada T+1 dias)
 G = Int(round(N/f)) # tamaño grupo a testear - por ahora un numero entero
-T = 365             # simulation horizon
+T = 75             # simulation horizon
 α = 0.082   #calculado           # adjusted prob of contagion amoong coworkers
 β = 0.007   #calculado           # external prob of contagion
 #probabilidad de contagiarse desde los pacientes
 γ = 0.30 #(antes 0.25)           # prop of asymtomatic pop
 p_false_positive = 0.01 # probability of a false positive
-R = 500     # Replications
+R = 100    # Replications
 S=20 #Cantidad de grupos
 
 base_mQua, base_mInf, base_mNFp, base_mNQinc = simulation(N, f,G,T,α,β,γ,p_false_positive,R, false,S)
@@ -314,6 +422,8 @@ ideal_mQua, ideal_mInf, ideal_mNFp, ideal_mNQinc = simulation(N, 1,N,T,α,β,γ,
 f10_mQua, f10_mInf, f10_mNFp, f10_mNQinc = simulation(N, f,G,T,α,β,γ,p_false_positive,R, true,S)
 f102_mQua, f102_mInf,f102_mNFp,f102_mNQinc = simulation(N, f,N,T,α,β,γ,p_false_positive,R, true,S)
 f1G_mQua, f1G_mInf,f1G_mNFp,f1G_mNQinc = simulation(N, 1,G,T,α,β,γ,p_false_positive,R, true,S)
+poll_mQua, poll_mInf, poll_mNFp, poll_mNQinc = simulation(N, 1,G,T,α,β,γ,p_false_positive,R, "poll",S)
+pollf10_mQua, pollf10_mInf, pollf10_mNFp, pollf10_mNQinc = simulation(N, f,G,T,α,β,γ,p_false_positive,R, "poll",S)
 
 
 f1 =plot(1:T-1,base_mQua[1:end-1],label ="base", lw=3)
@@ -321,6 +431,8 @@ plot!(1:T-1,ideal_mQua[1:end-1],label ="ideal", lw=3)
 plot!(1:T-1,f10_mQua[1:end-1],label ="f=10 y G=20", lw=3)
 plot!(1:T-1,f102_mQua[1:end-1],label ="f=10 y G=200 ", lw=3)
 plot!(1:T-1,f1G_mQua[1:end-1],label ="f=1 y G=20 ", lw=3)
+plot!(1:T-1,poll_mQua[1:end-1],label ="poll f=1 y G=20 ", lw=3)
+plot!(1:T-1,pollf10_mQua[1:end-1],label ="poll f=10 y G=20 ", lw=3)
 title!("Cuarentena")
 xlabel!("Días")
 ylabel!("# personas")
@@ -330,11 +442,13 @@ plot!(1:T-1,ideal_mInf[1:end-1], label ="ideal", lw=3)
 plot!(1:T-1,f10_mInf[1:end-1], label ="f=10 G=20", lw=3)
 plot!(1:T-1,f102_mInf[1:end-1], label ="f=10 G=200", lw=3)
 plot!(1:T-1,f1G_mInf[1:end-1], label ="f=1 G=20", lw=3)
+plot!(1:T-1,poll_mInf[1:end-1],label ="poll f=1 y G=20 ", lw=3)
+plot!(1:T-1,pollf10_mInf[1:end-1],label ="poll f=10 y G=20 ", lw=3)
 title!("Infección")
 xlabel!("Días")
 ylabel!("# personas")
 
 print("Caso: Falsos Positivos - Descubiertos en incubacion ","Base:", base_mNFp,"-",base_mNQinc," Ideal:",ideal_mNFp,"-",ideal_mNQinc," Frecuencia 10 G=20:",f10_mNFp,"-", f10_mNQinc," Frecuencia 10 G=200:",f102_mNFp,"-"
-, f102_mNQinc," Frecuencia 1 G=20:",f1G_mNFp,"-", f1G_mNQinc)
+, f102_mNQinc," Frecuencia 1 G=20:",f1G_mNFp,"-", f1G_mNQinc," Poll Frecuencia 1 G=20:",poll_mNFp,"-", poll_mNQinc," Poll Frecuencia 10 G=20:",pollf10_mNFp,"-", pollf10_mNQinc)
 
 plot(f1,f2, layout = (2,1))
