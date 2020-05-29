@@ -158,9 +158,9 @@ end
 #mInf2: Personas infectadas trabajando o mandadas a cuarentena (se agregan al anterior las que estan en cuarentena, pero les corresponde el turno, son las perdidas)
 #mInf3: Personas infectadas en total
 
-function simulation(N, f,G,T,β,γ,p_false_positive,R,test,prob,Group,Tra,random)
+function simulation(N, f,G,T,β,γ,p_false_positive,R,test,prob,Group,Tra,random,cuarentena,z)
 #N Tamaño grupo de trabajadores
-# Frecuencia testeo (puede ser vector de largo T, en caso de testear random de tamaño G o matriz de NxT con los individuos a testear en sus fechas)
+#f Frecuencia testeo (puede ser vector de largo T, en caso de testear random de tamaño G o matriz de NxT con los individuos a testear en sus fechas)
 # G Solo aplica para el caso random el número de test individuales o poll (por ejemplo G=4 son 4 poll testing y todos los sub test que se generen)
 # T simulation horizon
 # β house prob of contagion
@@ -170,11 +170,16 @@ function simulation(N, f,G,T,β,γ,p_false_positive,R,test,prob,Group,Tra,random
 #test dice si es "poll", true(individual) o false (no hace).
 #S Cantidad de grupos cerrados (los grupos tendran N/S integrantes)
 #prob Prob peak de infeccion
-#Group es los 
+#Group un vector con indicatrices de tamañño N con los integrantes de cada grupo, seguido de horas de trabajo y riesgo de atención, tamaño (N+2)*S
+#Tra: Matriz (N,T) de turnos de trabajo
+#random: Si es random o estan fijos a quienes se testeara (no los dias esos estan en f, solo los funcionarios a testear)
+#cuarentena: Si se mandan a todo el grupo en cuarentena o solo al infectado (ahora tambien mixto, solo al grupo cuando uno presenta sintomas)
+#z: dias de cuarntena al grupo, no se usa en caso de solo mandar al positivo
 
-
-
-S=length(Group)/(N+2)
+S=length(Group)/(N+2) #Tamaño grupo
+if (cuarentena=="grupo")|(cuarentena=="mixto")
+v=vecgroup(Group)
+end
 #Vectores que guardan los valores de cuarentena, infectados y números de test en cada t
     mQua = zeros(T)
     mQua2 = zeros(T)
@@ -183,7 +188,7 @@ S=length(Group)/(N+2)
     mInf3 = zeros(T)
 	mNTest=zeros(T)
 	mNFpositive=zeros(T)
-	mNQincubacion=0
+
 
     # Loop over replications
     for r = 1:R
@@ -241,9 +246,9 @@ S=length(Group)/(N+2)
 		r=rand(N)
 		#Reemplazar el beta y 1.2 beta por una probabilidad de contagio en casa idividual.
 		new_inf+=(tra).*(-qu.+1).*su.*g.*(r.<(1-(1-PG)*(1-β))) #Vector de infectados entre todo el hospital
-		new_inf+=(-tra.+1).*qu.*su.*g.*(r.<(β)) #Sumar infectados en cuarentena (falsos positivos
-		#que se contagian en casa,por lo que la probabilidad de casa deberia aumentar)
-
+		new_inf+=qu.*su.*g.*(r.<(β)) #Sumar infectados en cuarentena (falsos positivos)
+		new_inf+=(-tra.+1).*(-qu.+1).*su.*g.*(r.<(β)) #Sumar infectados en cuarentena (contagio en la casa)
+		
 
 
 
@@ -264,7 +269,7 @@ S=length(Group)/(N+2)
 
 		#Para el poll test no random, es similar. Se hacen distintos, pues en caso random la frecuencia es un vector
 		if random=="no"
-			I2=f[:,t].*( sum(Sy[:,1:max((t-2),1)],dims=2).==0 ).*(-qu.+1).*(tra).*collect(1:N)
+			I2=f[:,t].*( sum(Sy[:,1:max((t-2),1)],dims=2).==0 ).*(-qu.+1).*collect(1:N)
 			JJ2=(g.*I2)
 			III2=setdiff(JJ2,[0])
 			if length(III2)==0
@@ -289,8 +294,19 @@ S=length(Group)/(N+2)
                	In[i, Int(min(T,t+ti_inf)) : Int(min(T,t+te_inf))] .= 1    # infeccious individual
                	Sy[i, Int(min(T,t+t_inc)) : Int(min(T,t+te_inf))] .= (1-As[i]) # symptomatic individual
                 Re[i, Int(min(T,t+t_rec)): T] .= 1                         # recovered individual
-                Qu[i, Int(min(T,t+t_inc+2)): Int(min(T,max(t+15,t+t_rec+3)))] .= (1-As[i]) #you must go to quarantine if you get symptoms
-               	tEx[i] = t + 1       # time of exposure
+		if (As[i]==0) & (qu[i]==0) 
+			
+			Qu[i, Int(min(T,t+t_inc+2)): Int(min(T,max(t+15,t+t_rec+3)))] .= (1-As[i]) #you must go to quarantine if you get symptoms
+        
+			if (cuarentena=="grupo")|(cuarentena=="mixto")
+				for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+					Qu[y,Int(min(T,t+t_inc+2)):Int(min(T,t+t_inc+2+z))] .= 1 #quarantined for 2 weeks
+					
+				end
+			end
+
+		end
+                tEx[i] = t + 1       # time of exposure
                	tSy[i] = t + 1 + t_inc   # time of development of symptoms
                 tIn[i] = t + 1 + ti_inf # time of infecciousness
                 tRe[i] = t + 1 + t_rec   # time of recovery
@@ -346,6 +362,12 @@ S=length(Group)/(N+2)
 										NTest[t]+=1
 										if (su[i]==1) & (rand() < p_false_positive) #Nuevamente tenemos un falso positivo
                     									Qu[i,min(T,t+1):min(T,t+15)] .= 1 #if someone tests (false) positive, quarantined for 2 weeks
+											
+											if cuarentena=="grupo"
+												for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+													Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
+												end
+											end
 											NFpositive[t]+=1			
 										end
 									end
@@ -357,15 +379,24 @@ S=length(Group)/(N+2)
                     										if (qu[i] == 0) & (sum(Qu[i,1:t])==0)
                         										p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1)
                         										if rand() < p_positive #Se encuentra un individuo positivo
-                            											Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
-														if ex[i]==1 #Esta en incubacion
-															NQincubacion+=1
+														Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+														
+														if cuarentena=="grupo"
+															for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+																Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
+															end
 														end
 													end
                         									end
                     									else
 												if (rand() < p_false_positive) #Se encuentra un falso positivo
-                    											Qu[i,min(T,t+2):min(T,t+16)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+                    											Qu[i,min(T,t+1):min(T,t+15)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+													
+													if cuarentena=="grupo"
+														for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+															Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
+														end
+													end
 													NFpositive[t]+=1	
 												end
 											end
@@ -383,6 +414,12 @@ S=length(Group)/(N+2)
 			NTest[t]+=1 #Se hace un test
                 	if (su[i] == 1) & (rand() < p_false_positive) #Falso positivo
                     		Qu[i,min(T,t+1):min(T,t+15)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+				
+				if cuarentena=="grupo"
+					for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+						Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
+					end
+				end
 				NFpositive[t]+=1
                 	end
                 	if su[i] == 0 #Esta o estuvo enfermo
@@ -390,9 +427,12 @@ S=length(Group)/(N+2)
                         		p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1)
                         		if rand() < p_positive #Probabilidad de que el test de positivo
                             			Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
-							if ex[i]==1 #Esta en incubacion
-								NQincubacion+=1
+					
+						if cuarentena=="grupo"
+							for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+								Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
 							end
+						end	
                         		end
                     		end
                 	end
@@ -449,6 +489,11 @@ end
 										NTest[t]+=1
 										if (su[i]==1) & (rand() < p_false_positive)
                     									Qu[i,min(T,t+1):min(T,t+15)] .= 1 #if someone tests (false) positive, quarantined for 2 weeks
+											if cuarentena=="grupo"
+												for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+													Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
+												end
+											end	
 											NFpositive[t]+=1			
 										end
 									end
@@ -461,14 +506,23 @@ end
                         										p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1)
                         										if rand() < p_positive
                             											Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
-														if ex[i]==1 #Esta en incubacion
-															NQincubacion+=1
+														
+														if cuarentena=="grupo"
+															for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+																Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
+															end
 														end
 													end
                         									end
                     									else
 												if (rand() < p_false_positive)
-                    											Qu[i,min(T,t+2):min(T,t+16)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+                    												Qu[i,min(T,t+1):min(T,t+15)] .= 1 #if someone tests (false) positive, quarantined for 2 weeks # if someone tests (false) positive, quarantined for 2 weeks
+														
+														if cuarentena=="grupo"
+															for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+																Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
+															end
+														end
 													NFpositive[t]+=1	
 												end
 											end
@@ -486,6 +540,11 @@ end
 			NTest[t]+=1
                 	if (su[i] == 1) & (rand() < p_false_positive)
                     		Qu[i,min(T,t+1):min(T,t+15)] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
+				if cuarentena=="grupo"
+					for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+						Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
+					end
+				end
 				NFpositive[t]+=1
                 	end
                 	if su[i] == 0
@@ -493,9 +552,11 @@ end
                         		p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1)
                         		if rand() < p_positive
                             			Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
-							if ex[i]==1 #Esta en incubacion
-								NQincubacion+=1
+						if cuarentena=="grupo"
+							for y in findall((-qu.+1).*(Group[Int((N+2)*(v[i]-1)+1):Int((N+2)*(v[i]-1)+N)]).==1)
+								Qu[y,min(T,t+1):min(T,t+1+z)] .= 1 #quarantined for 2 weeks
 							end
+						end
                         		end
                     		end
                 	end
@@ -521,9 +582,8 @@ end
         mInf .+= dropdims(sum(Tra.*(-Qu.+1).*In,dims=1),dims=1)
         mInf2 .+= dropdims(sum((Tra).*In,dims=1),dims=1)
 	mInf3 .+= dropdims(sum(In,dims=1),dims=1)
-		mNFpositive .+= NFpositive
-		mNQincubacion+=NQincubacion
-		mNTest .+= NTest
+	mNFpositive .+= NFpositive	
+	mNTest .+= NTest
     end
 #Se calcula un promedio de las simulaciones
     mQua = mQua/R
@@ -532,7 +592,6 @@ end
     mInf2 = mInf2/R
     mInf3 = mInf3/R	
 	mNFpositive=mNFpositive/R
-	mNQincubacion=mNQincubacion/R
 	mNTest=mNTest/R
 
 
@@ -547,12 +606,12 @@ T = 105              # simulation horizon
 β = 0.01   #prob of contagion en casa
 γ = 0.3 #(antes 0.25)           # prop of asymtomatic pop
 p_false_positive = 0.01 # probability of a false positive
-R = 50    # Replications
+R = 200    # Replications
 p=0.2 #Prob peak de infeccion
 
 
 
-S=10 #Cantidad de grupos
+S=20 #Cantidad de grupos
     #Creacion de un grupo de ejemplo
     for a=1:S
 	global Group
@@ -572,6 +631,24 @@ S=10 #Cantidad de grupos
     end
 
 
+#Recibe un grupo y entrega un vector con los indices de los grupos a los que pertenecen
+function vecgroup(group)
+S=Int(length(group)/(N+2))
+A=zeros(N,S)
+v=zeros(N)
+for b in 1:S
+	for a in 1:N
+		A[a,b]=group[Int.((N+2)*(b-1)+a)]
+		
+	end
+end
+for i in 1:N
+v[i]=Int.(setdiff((A[i,:]).*collect(1:S),[0]))[1]
+
+
+end
+return v
+end
 
 #Esquemas de trabajo
 
@@ -629,6 +706,9 @@ function frecuencia(N,T,f,d,G,random)
 			end
 		end
 	return Frec
+
+
+
 	end
 	if random=="no"
 		Frec=zeros(N,T)
@@ -681,169 +761,277 @@ end
 
 
 
+z=5
+
+
+base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T= simulation(N, fr0,G,T,β,γ,p_false_positive,R, false,p,Group,Trab3,"si","mixto",z)
+ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T = simulation(N, Trab3,N,T,β,γ,p_false_positive,R, true,p,Group,Trab3,"no","mixto",z)
+f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T = simulation(N, fr1,G,T,β,γ,p_false_positive,R, true,p,Group,Trab3,"no","mixto",z)
+poll_mQua,poll_mQua2, poll_mInf,poll_mInf2,poll_mInf3, poll_mNFp, poll_T = simulation(N, fr1,4,T,β,γ,p_false_positive,R, "poll",p,Group,Trab3,"no","mixto",z)
+poll2_mQua,poll2_mQua2, poll2_mInf,poll2_mInf2,poll2_mInf3, poll2_mNFp, poll2_T = simulation(N, Trab3,8,T,β,γ,p_false_positive,R, "poll",p,Group,Trab3,"no","mixto",z)
 
 
 
-base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T= simulation(N, fr0,G,T,β,γ,p_false_positive,R, false,p,Group,Trab3,"si")
-ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T = simulation(N, Trab3,N,T,β,γ,p_false_positive,R, true,p,Group,Trab3,"si")
-f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T = simulation(N, fr1,G,T,β,γ,p_false_positive,R, true,p,Group,Trab3,"no")
-poll_mQua,poll_mQua2, poll_mInf,poll_mInf2,poll_mInf3, poll_mNFp, poll_T = simulation(N, fr1,4,T,β,γ,p_false_positive,R, "poll",p,Group,Trab3,"no")
-
-
-f1 =plot(1:T-1,base_mQua[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mQua[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mQua[1:end-1],label ="f=1 y G=20 no random", lw=3)
-plot!(1:T-1,poll_mQua[1:end-1],label ="poll f=1 y G=4 ", lw=3)
-title!("Cuarentena Trabajando")
+f1 =plot(1:T-1,base_mQua[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mQua[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mQua[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mQua[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mQua[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Cuarentena Trabajando Cuarentena Mixta")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# % personas")
 
-f12 =plot(1:T-1,base_mQua2[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mQua2[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mQua2[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mQua2[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Cuarentena Total")
+f12 =plot(1:T-1,base_mQua2[1:end-1]/N,label ="No testear", lw=3)
+plot!(1:T-1,ideal_mQua2[1:end-1]/N,label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mQua2[1:end-1]/N,label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mQua2[1:end-1]/N,label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mQua2[1:end-1]/N,label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Cuarentena Total Cuarentena Mixta")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
 
 
 
-f2 =plot(1:T-1,base_mInf[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mInf[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mInf[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mInf[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Infección trabajando en el turno de trabajo")
+f2 =plot(1:T-1,base_mInf[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección trabajando en el turno de trabajo Cuarentena Mixta")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
-f22 =plot(1:T-1,base_mInf2[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mInf2[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mInf2[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mInf2[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Infección total del turno de trabajo")
+f22 =plot(1:T-1,base_mInf2[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf2[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf2[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf2[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf2[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección total del turno de trabajo Cuarentena Mixta")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
-f23 =plot(1:T-1,base_mInf3[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mInf3[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mInf3[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mInf3[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Infección Total")
+f23 =plot(1:T-1,base_mInf3[1:end-1]/N,label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf3[1:end-1]/N,label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf3[1:end-1]/N,label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf3[1:end-1]/N,label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf3[1:end-1]/N,label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección Total Cuarentena Mixta")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
 
 
 
-f3 =plot(1:T-1,base_T[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_T[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_T[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_T[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Test Realizados")
+f3 =plot(1:T-1,base_T[1:end-1],label ="No testear", lw=3)
+plot!(1:T-1,ideal_T[1:end-1],label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_T[1:end-1],label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_T[1:end-1],label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_T[1:end-1],label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Test Realizados Cuarentena Mixta")
 xlabel!("Días")
 ylabel!("# Test")
 
 
 f4 =plot(1:T-1,base_mNFp[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mNFp[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mNFp[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mNFp[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Falsos Positivos")
+plot!(1:T-1,ideal_mNFp[1:end-1],label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mNFp[1:end-1],label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mNFp[1:end-1],label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mNFp[1:end-1],label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Falsos Positivos Cuarentena Mixta")
 xlabel!("Días")
 ylabel!("# Test")
 
-print("Caso: Falsos Positivos - Test ","Base:", round(sum(base_mNFp)),"-",round(sum(base_T))," Ideal:",round(sum(ideal_mNFp)),"-",round(sum(ideal_T))," Frecuencia 1 G=20 no random:",round(sum(f1_mNFp)),"-",round(sum(f1_T))," Poll Frecuencia 1 G=20:",round(sum(poll_mNFp)),"-",round(sum(poll_T)) )
+print("Caso: Falsos Positivos - Test "," No testear: ", round(sum(base_mNFp)),"-",round(sum(base_T))," Simple, Cada día los 4 grupos: " ,round(sum(ideal_mNFp)),"-",round(sum(ideal_T))," Simple, Cada día 2 grupos: ",round(sum(f1_mNFp)),"-",round(sum(f1_T))," Poll, Cada día los 2 grupos: ",round(sum(poll_mNFp)),"-",round(sum(poll_T))," Poll, Cada día los 4 grupos: ",round(sum(poll2_mNFp)),"-",round(sum(poll2_T)) )
 
 plot(f1,f12, layout = (2,1))
 
+savefig("Cuarentena-Caso-Mixto,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
+plot(f2,f22,f23, layout = (3,1))
+savefig("Infectados-Caso-Mixto,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
+
+plot(f3,f4, layout = (2,1))
+savefig("Test-Caso-Mixto,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
 
 
-#Comentarios para reunion
-#Los test se mantienen al largo plazo en casi siempre en un promedio de 6 al dia, pues la población asintomatica, siempre se seguira testeando, pues nunca se
-#descarta la posibilidad de falso positivo, esto se comprobo con que cuando estos eran 0, los test decrecieron a cero a los 2 años aprox
 
 
+base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T= simulation(N, fr0,G,T,β,γ,p_false_positive,R, false,p,Group,Trab3,"si","grupo",z)
+ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T = simulation(N, Trab3,N,T,β,γ,p_false_positive,R, true,p,Group,Trab3,"no","grupo",z)
+f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T = simulation(N, fr1,G,T,β,γ,p_false_positive,R, true,p,Group,Trab3,"no","grupo",z)
+poll_mQua,poll_mQua2, poll_mInf,poll_mInf2,poll_mInf3, poll_mNFp, poll_T = simulation(N, fr1,4,T,β,γ,p_false_positive,R, "poll",p,Group,Trab3,"no","grupo",z)
+poll2_mQua,poll2_mQua2, poll2_mInf,poll2_mInf2,poll2_mInf3, poll2_mNFp, poll2_T = simulation(N, Trab3,8,T,β,γ,p_false_positive,R, "poll",p,Group,Trab3,"no","grupo",z)
 
 
-base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T= simulation(N, fr0,G,T,β,γ,p_false_positive,R, false,p,Group,Trab4,"si")
-ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T = simulation(N, fr1200,N,T,β,γ,p_false_positive,R, true,p,Group,Trab4,"si")
-f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T = simulation(N, fr2,G,T,β,γ,p_false_positive,R, true,p,Group,Trab4,"no")
-poll_mQua,poll_mQua2, poll_mInf,poll_mInf2,poll_mInf3, poll_mNFp, poll_T = simulation(N, fr2,4,T,β,γ,p_false_positive,R, "poll",p,Group,Trab4,"no")
-
-
-bf1 =plot(1:T-1,base_mQua[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mQua[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mQua[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mQua[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Cuarentena Trabajando")
+bf1 =plot(1:T-1,base_mQua[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mQua[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mQua[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mQua[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mQua[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Cuarentena Trabajando Cuarentena Grupo")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
-bf12 =plot(1:T-1,base_mQua2[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mQua2[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mQua2[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mQua2[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Cuarentena Total")
+
+bf12 =plot(1:T-1,base_mQua2[1:end-1]/N,label ="No testear", lw=3)
+plot!(1:T-1,ideal_mQua2[1:end-1]/N,label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mQua2[1:end-1]/N,label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mQua2[1:end-1]/N,label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mQua2[1:end-1]/N,label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Cuarentena Total Cuarentena Grupo")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
 
 
-
-bf2 =plot(1:T-1,base_mInf[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mInf[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mInf[1:end-1],label ="f=1 y G=20 no random", lw=3)
-plot!(1:T-1,poll_mInf[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Infección trabajando en el turno de trabajo")
+bf2 =plot(1:T-1,base_mInf[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección trabajando en el turno de trabajo Cuarentena Grupo")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
-bf22 =plot(1:T-1,base_mInf2[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mInf2[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mInf2[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mInf2[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Infección total del turno de trabajo")
+bf22 =plot(1:T-1,base_mInf2[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf2[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf2[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf2[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf2[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección total del turno de trabajo Cuarentena Grupo")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
-bf23 =plot(1:T-1,base_mInf3[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mInf3[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mInf3[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mInf3[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Infección Total")
+
+bf23 =plot(1:T-1,base_mInf3[1:end-1]/N,label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf3[1:end-1]/N,label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf3[1:end-1]/N,label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf3[1:end-1]/N,label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf3[1:end-1]/N,label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección Total Cuarentena Grupo")
 xlabel!("Días")
-ylabel!("# personas")
+ylabel!("# %personas")
 
 
 
-
-bf3 =plot(1:T-1,base_T[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_T[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_T[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_T[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Test Realizados")
+bf3 =plot(1:T-1,base_T[1:end-1],label ="No testear", lw=3)
+plot!(1:T-1,ideal_T[1:end-1],label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_T[1:end-1],label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_T[1:end-1],label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_T[1:end-1],label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Test Realizados Cuarentena Grupo")
 xlabel!("Días")
 ylabel!("# Test")
 
 
 bf4 =plot(1:T-1,base_mNFp[1:end-1],label ="base", lw=3)
-plot!(1:T-1,ideal_mNFp[1:end-1],label ="ideal", lw=3)
-plot!(1:T-1,f1_mNFp[1:end-1],label ="Simple, f=10 un grupo", lw=3)
-plot!(1:T-1,poll_mNFp[1:end-1],label ="Poll, f=10 un grupo", lw=3)
-title!("Falsos Positivos")
+plot!(1:T-1,ideal_mNFp[1:end-1],label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mNFp[1:end-1],label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mNFp[1:end-1],label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mNFp[1:end-1],label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Falsos Positivos Cuarentena Grupo")
 xlabel!("Días")
 ylabel!("# Test")
 
-print("Caso: Falsos Positivos - Test ","Base:", round(sum(base_mNFp)),"-",round(sum(base_T))," Ideal:",round(sum(ideal_mNFp)),"-",round(sum(ideal_T))," Frecuencia 1 G=20 no random:",round(sum(f1_mNFp)),"-",round(sum(f1_T))," Poll Frecuencia 1 G=20:",round(sum(poll_mNFp)),"-",round(sum(poll_T)) )
+print("Caso: Falsos Positivos - Test "," No testear: ", round(sum(base_mNFp)),"-",round(sum(base_T))," Simple, Cada día los 4 grupos: " ,round(sum(ideal_mNFp)),"-",round(sum(ideal_T))," Simple, Cada día 2 grupos: ",round(sum(f1_mNFp)),"-",round(sum(f1_T))," Poll, Cada día los 2 grupos: ",round(sum(poll_mNFp)),"-",round(sum(poll_T))," Poll, Cada día los 4 grupos: ",round(sum(poll2_mNFp)),"-",round(sum(poll2_T)) )
 
 plot(bf1,bf12, layout = (2,1))
 
+savefig("Cuarentena-Caso-Grupo,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
+plot(bf2,bf22,bf23, layout = (3,1))
+savefig("Infectados-Caso-Grupo,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
+
+plot(bf3,bf4, layout = (2,1))
+savefig("Test-Caso-Grupo,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
 
 
 
 
+base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T= simulation(N, fr0,G,T,β,γ,p_false_positive,R, false,p,Group,Trab3,"si","solo",z)
+ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T = simulation(N, Trab3,N,T,β,γ,p_false_positive,R, true,p,Group,Trab3,"no","solo",z)
+f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T = simulation(N, fr1,G,T,β,γ,p_false_positive,R, true,p,Group,Trab3,"no","solo",z)
+poll_mQua,poll_mQua2, poll_mInf,poll_mInf2,poll_mInf3, poll_mNFp, poll_T = simulation(N, fr1,4,T,β,γ,p_false_positive,R, "poll",p,Group,Trab3,"no","solo",z)
+poll2_mQua,poll2_mQua2, poll2_mInf,poll2_mInf2,poll2_mInf3, poll2_mNFp, poll2_T = simulation(N, Trab3,8,T,β,γ,p_false_positive,R, "poll",p,Group,Trab3,"no","solo",z)
+
+
+cf1 =plot(1:T-1,base_mQua[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mQua[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mQua[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mQua[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mQua[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Cuarentena Trabajando Cuarentena Solo")
+xlabel!("Días")
+ylabel!("# %personas")
+
+cf12 =plot(1:T-1,base_mQua2[1:end-1]/N,label ="No testear", lw=3)
+plot!(1:T-1,ideal_mQua2[1:end-1]/N,label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mQua2[1:end-1]/N,label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mQua2[1:end-1]/N,label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mQua2[1:end-1]/N,label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Cuarentena Total Cuarentena Solo")
+xlabel!("Días")
+ylabel!("# %personas")
 
 
 
+
+cf2 =plot(1:T-1,base_mInf[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección trabajando en el turno de trabajo Cuarentena Solo")
+xlabel!("Días")
+ylabel!("# %personas")
+
+cf22 =plot(1:T-1,base_mInf2[1:end-1]/(N/5),label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf2[1:end-1]/(N/5),label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf2[1:end-1]/(N/5),label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf2[1:end-1]/(N/5),label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf2[1:end-1]/(N/5),label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección total del turno de trabajo Cuarentena Solo")
+xlabel!("Días")
+ylabel!("# %personas")
+
+
+cf23 =plot(1:T-1,base_mInf3[1:end-1]/N,label ="No testear", lw=3)
+plot!(1:T-1,ideal_mInf3[1:end-1]/N,label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mInf3[1:end-1]/N,label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mInf3[1:end-1]/N,label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mInf3[1:end-1]/N,label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Infección Total Cuarentena Solo")
+xlabel!("Días")
+ylabel!("# %personas")
+
+
+
+
+cf3 =plot(1:T-1,base_T[1:end-1],label ="No testear", lw=3)
+plot!(1:T-1,ideal_T[1:end-1],label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_T[1:end-1],label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_T[1:end-1],label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_T[1:end-1],label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Test Realizados Cuarentena Solo")
+xlabel!("Días")
+ylabel!("# Test")
+
+
+cf4 =plot(1:T-1,base_mNFp[1:end-1],label ="base", lw=3)
+plot!(1:T-1,ideal_mNFp[1:end-1],label ="Simple, Cada día los 4 grupos", lw=3)
+plot!(1:T-1,f1_mNFp[1:end-1],label ="Simple, Cada día 2 grupos", lw=3)
+plot!(1:T-1,poll_mNFp[1:end-1],label ="Poll, Cada día los 2 grupos ", lw=3)
+plot!(1:T-1,poll2_mNFp[1:end-1],label ="Poll, Cada día los 4 grupos ", lw=3)
+title!("Falsos Positivos Cuarentena Solo")
+xlabel!("Días")
+ylabel!("# Test")
+
+print("Caso: Falsos Positivos - Test "," No testear: ", round(sum(base_mNFp)),"-",round(sum(base_T))," Simple, Cada día los 4 grupos: " ,round(sum(ideal_mNFp)),"-",round(sum(ideal_T))," Simple, Cada día 2 grupos: ",round(sum(f1_mNFp)),"-",round(sum(f1_T))," Poll, Cada día los 2 grupos: ",round(sum(poll_mNFp)),"-",round(sum(poll_T))," Poll, Cada día los 4 grupos: ",round(sum(poll2_mNFp)),"-",round(sum(poll2_T)) )
+plot(cf1,cf12, layout = (2,1))
+
+savefig("Cuarentena-Caso-Solo,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
+plot(cf2,cf22,cf23, layout = (3,1))
+savefig("Infectados-Caso-Solo,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
+
+plot(cf3,cf4, layout = (2,1))
+savefig("Test-Caso-Solo,Turno-1-4,Cuarentena-Grupo-5-Dias,Trabajan-40-en-4-grupos-cerrados-y-se-testea-al-final-del-día-de-trabajo.pdf")
 
