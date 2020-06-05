@@ -180,7 +180,7 @@ end
 #mInf2: Personas infectadas trabajando o mandadas a cuarentena (se agregan al anterior las que estan en cuarentena, pero les corresponde el turno, son las perdidas)
 #mInf3: Personas infectadas en total
 
-function simulation(N, f,G,T,β,γ,p_false_positive,R,test,prob,Group,Tra,random,cuarentena,z,t_peak,dias_atras,MF)
+function simulation(N, f,G,T,β,γ,p_false_positive,R,test,prob,Group,Tra,random,cuarentena,z,t_peak,dias_atras,MF,visita,p2)
 #N Tamaño grupo de trabajadores
 #f Frecuencia testeo (puede ser vector de largo T, en caso de testear random de tamaño G o matriz de NxT con los individuos a testear en sus fechas)
 # G Solo aplica para el caso random el número de test individuales o poll (por ejemplo G=4 son 4 poll testing y todos los sub test que se generen)
@@ -200,6 +200,8 @@ function simulation(N, f,G,T,β,γ,p_false_positive,R,test,prob,Group,Tra,random
 #t_peak: tiempo en que la exponencial alcanza la probabilidad peak
 #dias_atras: cuantos dias hacia atras se mira con quienes has tenido contacto estrecho
 #MF: Matriz de funcionarios, contiene sus interacciones con los pacientes y entre ellos.
+#Visitas: probabilidad contagio visita
+#p2: Probabilidad contagio entre pacientes
 hr=12 
 MD=zeros(N,T) #Matriz trabajo dia 
 MN=zeros(N,T) ##Matriz trabajo noche 
@@ -238,6 +240,11 @@ g_t=ones(T)
 	mNFpositive=zeros(T)
 m=length(MF[1,:,1])
 Gf=[zeros(N)' ones(m)']'
+maxInf=zeros(T)
+maxQua=zeros(T)
+maxSy=zeros(T)
+
+
 
     # Loop over replications
     for r = 1:R
@@ -284,7 +291,7 @@ Gf=[zeros(N)' ones(m)']'
 						tinf=tIn[Int(i)]-tEx[Int(i)]
 						tsin=tSy[i]-tEx[i]
 						trec=tRe[i]-tEx[i]
-						MC[i,j]=exponential_p(t,tinf,tsin,trec,prob,t_peak,hr)
+						MC[i,j]=exponential_p(t,tinf,tsin,trec,p2,t_peak,hr)
 				 		#Se agregan las probabilidades de los enfermos
 					end
 					if ((1-MD[i,t])*(1-MD[j,t])==1) & (MN[i,t]*MN[j,t]==1)  #Condicion esta en el grupo, infectado
@@ -293,7 +300,7 @@ Gf=[zeros(N)' ones(m)']'
 						tinf=tIn[Int(i)]-tEx[Int(i)]
 						tsin=tSy[i]-tEx[i]
 						trec=tRe[i]-tEx[i]
-						MC[i,j]=exponential_p(t,tinf,tsin,trec,prob,t_peak,hr)
+						MC[i,j]=exponential_p(t,tinf,tsin,trec,p2,t_peak,hr)
 				 		#Se agregan las probabilidades de los enfermos
 					end
 					if (MD[i,t]*MD[j,t]==1) & (MN[i,t]*MN[j,t]==1)  #Condicion esta en el grupo, infectado
@@ -302,7 +309,7 @@ Gf=[zeros(N)' ones(m)']'
 						tinf=tIn[Int(i)]-tEx[Int(i)]
 						tsin=tSy[i]-tEx[i]
 						trec=tRe[i]-tEx[i]
-						MC[i,j]=exponential_p(t,tinf,tsin,trec,prob,t_peak,2*hr)
+						MC[i,j]=exponential_p(t,tinf,tsin,trec,p2,t_peak,2*hr)
 						#Se agregan las probabilidades de los enfermos
 					end
 				end
@@ -313,7 +320,7 @@ Gf=[zeros(N)' ones(m)']'
 						tinf=tIn[Int(i)]-tEx[Int(i)]
 						tsin=tSy[i]-tEx[i]
 						trec=tRe[i]-tEx[i]
-						MC[i,N+f]=exponential_p(t,tinf,tsin,trec,prob,t_peak,hr)
+						MC[i,N+f]=exponential_p(t,tinf,tsin,trec,p2,t_peak,hr)
 				 		#Se agregan las probabilidades de los enfermos
 					end
 					if (MF[2*i-1,f,t]==0) & (MF[2*i,f,t]==1)  #Condicion esta en el grupo, infectado
@@ -322,7 +329,7 @@ Gf=[zeros(N)' ones(m)']'
 						tinf=tIn[Int(i)]-tEx[Int(i)]
 						tsin=tSy[i]-tEx[i]
 						trec=tRe[i]-tEx[i]
-						MC[i,N+f]=exponential_p(t,tinf,tsin,trec,prob,t_peak,hr)
+						MC[i,N+f]=exponential_p(t,tinf,tsin,trec,p2,t_peak,hr)
 				 		#Se agregan las probabilidades de los enfermos
 					end
 					if (MF[2*i-1,f,t]==1) & (MF[2*i,f,t]==1)  #Condicion esta en el grupo, infectado
@@ -331,7 +338,7 @@ Gf=[zeros(N)' ones(m)']'
 						tinf=tIn[Int(i)]-tEx[Int(i)]
 						tsin=tSy[i]-tEx[i]
 						trec=tRe[i]-tEx[i]
-						MC[i,N+f]=exponential_p(t,tinf,tsin,trec,prob,t_peak,2*hr)
+						MC[i,N+f]=exponential_p(t,tinf,tsin,trec,p2,t_peak,2*hr)
 				 		#Se agregan las probabilidades de los enfermos
 					end	
 				end					
@@ -368,11 +375,11 @@ Gf=[zeros(N)' ones(m)']'
 				end
 				
 			end
-			PG=[group_p(g,MC[:,1:N],W)' zeros(m)']' #Vector con probabilidades de contagio dentro del grupo
+			PG=[group_p(g+Gf,MC[:,1:N],W)' zeros(m)']' #Vector con probabilidades de contagio dentro del grupo
 			r=rand(N+m)
 			#Reemplazar el beta y 1.2 beta por una probabilidad de contagio en casa idividual.
-			new_inf+=(-qu.+1).*su.*g.*(r.<(-(-PG.+1).*(1-β).+1)) #Vector de infectados del grupo que no esten en cuarentena, esten o no trabajando
-			new_inf+=qu.*su.*g.*(r.<(β)) #Sumar infectados en cuarentena (falsos positivos)
+			new_inf+=(-qu.+1).*su.*g.*(r.<(-(-PG.+1).*(1-visita).+1)) #Vector de infectados del grupo que no esten en cuarentena, esten o no trabajando
+			new_inf+=qu.*su.*g.*(r.<(visita)) #Sumar infectados en cuarentena (falsos positivos)
 			#Para el poll test, predefino el numero de grupos que se pueden formar
 			#se ve quienes son el publico a testear
 			if test=="poll"
@@ -729,6 +736,13 @@ end
 	mFSy .+= dropdims(sum(Sy[N+1:N+m,:],dims=1),dims=1)
 	mNFpositive .+= NFpositive	
 	mNTest .+= NTest
+	maxi=max(   maximum(maxInf)  ,  maximum(sum(In[1:N,:],dims=1))   )
+	si=maximum(maxInf)==(maxi)
+	maxInf=(sum(In[1:N,:],dims=1))'*(1-si)+maxInf*si
+ 	if maxInf==sum(In[1:N,:],dims=1)'
+		maxQua=sum(Qu[1:N,:],dims=1)
+		maxSy=sum(Sy[1:N,:],dims=1)
+	end
     end
 #Se calcula un promedio de las simulaciones
     mQua = mQua/R
@@ -745,7 +759,7 @@ end
 	mNTest=mNTest/R
 
 
-    return mQua,mQua2,mInf,mInf2,mInf3, mNFpositive,  mNTest, g_t, mSy,mFQua,mFInf,mFInf2,mFSy
+    return mQua,mQua2,mInf,mInf2,mInf3, mNFpositive,  mNTest, g_t, mSy,mFQua,mFInf,mFInf2,mFSy, maxInf, maxQua, maxSy
 end
 
 
@@ -756,8 +770,8 @@ T = 210              # simulation horizon
 β = 0.01   #prob of contagion en casa
 γ = 0.3 #(antes 0.25)           # prop of asymtomatic pop
 p_false_positive = 0.01 # probability of a false positive
-R = 400    # Replications
-p=0.01 #Prob peak de infeccion
+R = 500   # Replications
+p=0.1 #Prob peak de infeccion
 
 
 
@@ -1076,7 +1090,7 @@ fzero=zeros(N,T)
 S=1	
 N=100
 T=100
-m=10
+m=20
 Trabajo=ones(2*N,T)
 Frecuencia0=zeros(N+m,T)
 Frecuencia1=ones(N+m,T)
@@ -1096,8 +1110,9 @@ Frecuenciar=zeros(N+m,T)
 for t in 1:T
 	for i in 1:10
 		if mod(t-1,10)==i-1
-			Frecuenciar[(i-1)*Int(N/m)+1:(i)*Int(N/m),t]=ones(Int(N/m))
-			Frecuenciar[N+i,t]=1	
+			Frecuenciar[(i-1)*Int(2*N/m)+1:(i)*Int(2*N/m),t]=ones(Int(2*N/m))
+			Frecuenciar[N+i,t]=1
+			Frecuenciar[N+i+10,t]=1	
 		end
 	end
 end
@@ -1105,7 +1120,7 @@ Frecuenciar2=zeros(N+m,T)
 for t in 1:T
 	for i in 1:5
 		if mod(t-1,5)==i-1
-			Frecuenciar2[2*(i-1)*Int(N/m)+1:(i)*2*Int(N/m),t]=ones(2*Int(N/m))
+			Frecuenciar2[2*(i-1)*Int(2*N/m)+1:(i)*2*Int(2*N/m),t]=ones(2*Int(2*N/m))
 			Frecuenciar2[N+2*i-1,t]=1	
 			Frecuenciar2[N+2*i,t]=1	
 
@@ -1134,26 +1149,30 @@ end
 #Horarios e intereracciones funcionarios
 MFunc=zeros(2*(N+m),m,T)
 MFunc2=zeros(2*(N+m),m,T)
-for i in 1:10
-	MFunc2[(i-1)*20+1:i*20,i,:]=ones(20,T)
+for t in 1:T
+	for i in 1:10
+		MFunc2[(i-1)*20+1:i*20,i+(1-mod(t,2))*10,t]=ones(20)
+	end
 end
 MFunc3=zeros(2*(N+m),m,T)
-for i in 1:10
-	MFunc3[(i-1)*20+1:i*20,i,:]=ones(20,T)
+for t in 1:T
+	for i in 1:10
+		MFunc3[(i-1)*20+1:i*20,i+(1-mod(t,2))*10,t]=ones(20)
+	end
 end
-MFunc3[2*N+1:2*(N+m),:,:]=ones(2*m,m,T)
-
+MFunc3[2*N+1:2*N+m,1:Int(m/2),:]=ones(m,Int(m/2),T)
+MFunc3[2*N+m+1:2*N+2*m,1:Int(m/2),:]=ones(m,Int(m/2),T)
+visita=0.01*(1/30)*0.2
+p2=0.01
 ###############################################################################
 z=14
 #Caso cuarentena preventiva antes del trabajo en jornada de 2-12
 
-base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T, baseg_t, base_mSy,base_mFQua,base_mFInf,base_mFInf2,base_mFSy= simulation(N, Frecuencia0,0,T,β,γ,p_false_positive,R, false,p,Group1,Trabajo,"no","solo",z,t_peak,0,MFunc3)
-ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T, idealg_t, ideal_mSy,ideal_mFQua,ideal_mFInf,ideal_mFInf2,ideal_mFSy = simulation(N, Frecuencia1,N,T,β,γ,p_false_positive,R, true,p,Group1,Trabajo,"no","solo",z,t_peak,0,MFunc3)
-#ideal2_mQua,ideal2_mQua2, ideal2_mInf,ideal2_mInf2,ideal2_mInf3, ideal2_mNFp, ideal2_T = simulation(N, fr44,N,T,β,γ,p_false_positive,R, true,p,Group1,Trab4,"no","solo",z,t_peak,MFunc2)
-f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T, f1g_t, f1_mSy,f1_mFQua,f1_mFInf,f1_mFInf2,f1_mFSy = simulation(N, Frecuencia10,N,T,β,γ,p_false_positive,R, true,p,Group1,Trabajo,"no","solo",z,t_peak,0,MFunc3)
-fr_mQua,fr_mQua2, fr_mInf,fr_mInf2,fr_mInf3, fr_mNFp, fr_T, frg_t, fr_mSy,fr_mFQua,fr_mFInf,fr_mFInf2,fr_mFSy = simulation(N, Frecuenciar,N,T,β,γ,p_false_positive,R, true,p,Group1,Trabajo,"no","solo",z,t_peak,0,MFunc3)
-
-
+base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T, baseg_t, base_mSy,base_mFQua,base_mFInf,base_mFInf2,base_mFSy,base_maxInf,base_maxQua, base_maxSy= simulation(N, Frecuencia0,0,T,β,γ,p_false_positive,R, false,p,Group1,Trabajo,"no","solo",z,t_peak,0,MFunc3,visita,p2)
+ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T, idealg_t, ideal_mSy,ideal_mFQua,ideal_mFInf,ideal_mFInf2,ideal_mFSy,ideal_maxInf,ideal_maxQua, ideal_maxSy = simulation(N, Frecuencia1,N,T,β,γ,p_false_positive,R, true,p,Group1,Trabajo,"no","solo",z,t_peak,0,MFunc3,visita,p2)
+#ideal2_mQua,ideal2_mQua2, ideal2_mInf,ideal2_mInf2,ideal2_mInf3, ideal2_mNFp, ideal2_T = simulation(N, fr44,N,T,β,γ,p_false_positive,R, true,p,Group1,Trab4,"no","solo",z,t_peak,MFunc2,visita,p2)
+f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T, f1g_t, f1_mSy,f1_mFQua,f1_mFInf,f1_mFInf2,f1_mFSy,f1_maxInf,f1_maxQua, f1_maxSy = simulation(N, Frecuencia10,N,T,β,γ,p_false_positive,R, true,p,Group1,Trabajo,"no","solo",z,t_peak,0,MFunc3,visita,p2)
+fr_mQua,fr_mQua2, fr_mInf,fr_mInf2,fr_mInf3, fr_mNFp, fr_T, frg_t, fr_mSy,fr_mFQua,fr_mFInf,fr_mFInf2,fr_mFSy,fr_maxInf,fr_maxQua, fr_maxSy = simulation(N, Frecuenciar,N,T,β,γ,p_false_positive,R, true,p,Group1,Trabajo,"no","solo",z,t_peak,0,MFunc3,visita,p2)
 
 #f1 =plot(1:T-1,base_mQua[1:end-1],label ="No testear", lw=3)
 #plot!(1:T-1,ideal_mQua[1:end-1],label ="Simple, Todos los días", lw=3)
@@ -1236,7 +1255,7 @@ plot!(1:T-1,ideal_mFQua[1:end-1],label ="Simple, Todos los dias", lw=3)
 #plot!(1:T-1,ideal2_mFQua[1:end-1],label ="Simple, Cada día los 4 grupos ver2", lw=3)
 plot!(1:T-1,f1_mFQua[1:end-1],label ="Simple, Cada 10 dias", lw=3)
 plot!(1:T-1,fr_mFQua[1:end-1],label ="Simple, Cada 10 dias repartido", lw=3)
-title!("Funcionarios en Cuarentena, con m=10")
+title!("Funcionarios en Cuarentena, con m=20")
 xlabel!("Dias")
 ylabel!("# personas")
 
@@ -1244,7 +1263,7 @@ f7 =plot(1:T-1,base_mFSy[1:end-1],label ="base", lw=3)
 plot!(1:T-1,ideal_mFSy[1:end-1],label ="Simple, Todos los dias", lw=3)
 plot!(1:T-1,f1_mFSy[1:end-1],label ="Simple, Cada 10 dias", lw=3)
 plot!(1:T-1,fr_mFSy[1:end-1],label ="Simple, Cada 10 dias repartido", lw=3)
-title!("Funcionarios con Sintomas, con m=10")
+title!("Funcionarios con Sintomas, con m=20")
 xlabel!("Días")
 ylabel!("# Personas")
 
@@ -1254,7 +1273,7 @@ plot!(1:T-1,ideal_mFInf[1:end-1],label ="Simple, Todos los dias", lw=3)
 #plot!(1:T-1,ideal2_mFInf[1:end-1],label ="Simple, Cada día los 4 grupos ver2", lw=3)
 plot!(1:T-1,f1_mFInf[1:end-1],label ="Simple, Cada 10 dias", lw=3)
 plot!(1:T-1,fr_mFInf[1:end-1],label ="Simple, Cada 10 dias repartido", lw=3)
-title!("Funcionarios infectados trabajando no descubiertos, con m=10")
+title!("Funcionarios infectados trabajando no descubiertos, con m=20")
 xlabel!("Días")
 ylabel!("# personas")
 
@@ -1264,9 +1283,38 @@ plot!(1:T-1,ideal_mFInf2[1:end-1],label ="Simple, Todos los dias", lw=3)
 #plot!(1:T-1,ideal2_mFInf2[1:end-1],label ="Simple, Cada día los 4 grupos ver2", lw=3)
 plot!(1:T-1,f1_mFInf2[1:end-1],label ="Simple, Cada 10 dias", lw=3)
 plot!(1:T-1,fr_mFInf2[1:end-1],label ="Simple, Cada 10 dias repartido", lw=3)
-title!("Funcionarios infectados, con m=10")
+title!("Funcionarios infectados, con m=20")
 xlabel!("Días")
 ylabel!("# personas")
+
+ff1 =plot(1:T-1,base_maxQua[1:end-1],label ="No testear", lw=3)
+plot!(1:T-1,ideal_maxQua[1:end-1],label ="Simple, Todos los dias", lw=3)
+#plot!(1:T-1,ideal2_maxQua[1:end-1],label ="Simple, Cada día los 4 grupos ver2", lw=3)
+plot!(1:T-1,f1_maxQua[1:end-1],label ="Simple, Cada 10 dias", lw=3)
+plot!(1:T-1,fr_maxQua[1:end-1],label ="Simple, Cada 10 dias repartido", lw=3)
+title!("Cuarentena peor caso, con m=20")
+xlabel!("Días")
+ylabel!("# personas")
+
+ff2 =plot(1:T-1,base_maxInf[1:end-1],label ="No testear", lw=3)
+plot!(1:T-1,ideal_maxInf[1:end-1],label ="Simple, Todos los dias", lw=3)
+#plot!(1:T-1,ideal2_maxInf[1:end-1],label ="Simple, Cada día los 4 grupos ver2", lw=3)
+plot!(1:T-1,f1_maxInf[1:end-1],label ="Simple, Cada 10 dias", lw=3)
+plot!(1:T-1,fr_maxInf[1:end-1],label ="Simple, Cada 10 dias repartido", lw=3)
+title!("Infectados peor caso, con m=20")
+xlabel!("Días")
+ylabel!("# personas")
+
+ff3 =plot(1:T-1,base_maxSy[1:end-1],label ="No testear", lw=3)
+plot!(1:T-1,ideal_maxSy[1:end-1],label ="Simple, Todos los dias", lw=3)
+#plot!(1:T-1,ideal2_maxSy[1:end-1],label ="Simple, Cada día los 4 grupos ver2", lw=3)
+plot!(1:T-1,f1_maxSy[1:end-1],label ="Simple, Cada 10 dias", lw=3)
+plot!(1:T-1,fr_maxSy[1:end-1],label ="Simple, Cada 10 dias repartido", lw=3)
+title!("Sintomas peor caso, con m=20")
+xlabel!("Días")
+ylabel!("# personas")
+
+
 
 print("Caso: Falsos Positivos - Test "," No testear: ", round(sum(base_mNFp)),"-",round(sum(base_T))," Simple, Cada día los 4 grupos: " ,round(sum(ideal_mNFp)),"-",round(sum(ideal_T))," Simple, Cada día 2 grupos: ",round(sum(f1_mNFp)),"-",round(sum(f1_T)))
 
@@ -1289,5 +1337,7 @@ plot(f3,f4, layout = (2,1))
 savefig("Test.pdf")
 
 
+plot(ff1,ff2,ff3, layout = (3,1))
+savefig("PeorCaso.pdf")
 
 
