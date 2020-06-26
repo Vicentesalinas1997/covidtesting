@@ -116,16 +116,14 @@ G=ones(S,T)           #Caso no random tamaño de grupos/podria implementarse com
 	end
 	##############################################
 	#Horarios e intereracciones funcionarios
-	Ftrab2=zeros(2*m,T) #Funcionarios no trabajan
 	Ftrab2=zeros(2*m,T) #Funcionariso se relacionan con10 abuelitos dia por medio y no entre ellos
 	for t in 1:T
 		if mod(t,2)==1
-			Ftrab2[1:Int(m/2),t]=ones(Int(m/2))
+			Ftrab2[1:Int(m),t]=ones(Int(m))
 		else
-			Ftrab2[Int(m/2)+1:m,t]=ones(Int(m/2))
+			Ftrab2[Int(m)+1:2*m,t]=ones(Int(m))
 		end
 	end
-	Mrel=zeros(S,S)
 	Mrel2=zeros(S,S)
 	for i in 1:S
 		for j in 1:S
@@ -137,13 +135,13 @@ G=ones(S,T)           #Caso no random tamaño de grupos/podria implementarse com
 				else
 					if i==j-S1
 						Mrel2[i,j]=1
+						Mrel2[j,i]=1
 					end
 				end
 
 			end
 		end
 	end
-	Mrel2=ones(S,S)
 	###############################################################################
 	#Se realizan las 4 politicas
 politicas=4 #Numero de politicas
@@ -169,7 +167,7 @@ dict1 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad 
 "Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"No testear","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
 "testeo no random"=>Dict([]), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
-"Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"grupo","Dias atras"=>3,"Dias cuarentena"=>14) )
+"Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>3,"Dias cuarentena"=>14) )
 
 
 dict2 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad de contagio int"=>(0.01*0.2*(1/30)),"Probabilidad de contagio ext"=>0,

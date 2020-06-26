@@ -206,14 +206,14 @@ end
 #####################Se usa para calcular las probabilidades de contagiar a cada persona de un grupo, entrega un vector con las probabilidades de
 #####################cada integrante del grupo y 0 en los que no son del grupo
 #Funcion que entrega la probabilidad de contagiarte dentro de tu grupo de trabajo cerrado
-function group_p(G,M_cont)
+function group_p(M_cont)
 	#G: indicatriz del grupo de trabajo
 	#vp_cont: vector con las probabilidades de contagio
 	#W: Peligro de contagio de paciente
 	L=length(M_cont[1,:])
 	p=zeros(L)
-	for i in findall(G.==1)
-		p[i]=(1-prod(-M_cont[:,i].+1))
+	for i in 1:L
+	p[i]=(1-prod(-M_cont[:,i].+1))
 	end
 	#de no contagiarse multiplicado por un factor que pondera las horas, este desde
 	return p
@@ -439,11 +439,6 @@ VInf2=zeros(T)
 				end
 				end
 			end
-			PG=group_p(g,MC) #Vector con probabilidades de contagio dentro del grupo
-			r=rand(N+m)
-			mm=(MD[:,t]+MN[:,t])/2
-			new_inf+=(-qu.+1).*su.*g.*(r.<(-(-PG.+1).*(-mm.*p_int.+1).*(-(-mm.+1).*p_ext.+1).+1)) #Vector de infectados del grupo que no esten en cuarentena, esten o no trabajando
-			new_inf+=qu.*su.*g.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 #################################################################################################################
 			#Para el pool test, predefino el numero de grupos que se pueden formar
 			#se ve quienes son el publico a testear
@@ -492,10 +487,15 @@ VInf2=zeros(T)
 ####################################################################################################################
 	   	end
 #################################################################################################################################
+PG=group_p(MC) #Vector con probabilidades de contagio dentro del grupo
+r=rand(N+m)
+mm=(MD[:,t]+MN[:,t])/2
+new_inf+=(-qu.+1).*su.*(r.<(-(-PG.+1).*(-mm.*p_int.+1).*(-(-mm.+1).*p_ext.+1).+1)) #Vector de infectados del grupo que no esten en cuarentena, esten o no trabajando
+new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 
 ##########################################################################################
 #Se realiza el proceso de cambio en los estados de los nuevos infectados
-           	for i in findall(new_inf.>=1)                   # cicle over newly infected                                                #recorre los indices
+           	for i in findall(new_inf.==1)                   # cicle over newly infected
 				if i<=N #Infectados nuevos por dia
 					VInf1[t]+=1
 				else
@@ -913,7 +913,6 @@ end
         mInf2 .+= dropdims(sum(    (((MD[1:N,:]).*In[1:N,:]+(MN[1:N,:]).*In[1:N,:]).>=1)          ,dims=1),dims=1)
 	mInf3 .+= dropdims(sum(In[1:N,:],dims=1),dims=1)
 	mSy .+= dropdims(sum(Sy[1:N,:],dims=1),dims=1)
-
 if m>=1
 
 	mFQua .+= dropdims(sum(Qu[N+1:N+m,:],dims=1),dims=1)
@@ -1109,7 +1108,7 @@ open("parametros2.json", "r") do f
 end
 
 Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir=leer(dict12)
-ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T, ideal_mSy,ideal_mFQua,ideal_mFInf,ideal_mFInf2,ideal_mFSy,ideal_maxInf,ideal_maxQua, ideal_maxSy, ideal_Infect, ideal_VInf1, ideal_VInf2= simulation(100,20,Group,T,Horario[1:200,:],Horario[201:240,:],Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
+ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T, ideal_mSy,ideal_mFQua,ideal_mFInf,ideal_mFInf2,ideal_mFSy,ideal_maxInf,ideal_maxQua, ideal_maxSy, ideal_Infect, ideal_VInf1, ideal_VInf2= simulation(N,m,Group,T,Horario[1:200,:],Horario[201:240,:],Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
 
 
 open("parametros3.json", "r") do f
@@ -1146,8 +1145,6 @@ fr_mQua,fr_mQua2, fr_mInf,fr_mInf2,fr_mInf3, fr_mNFp, fr_T, fr_mSy,fr_mFQua,fr_m
 #	title!("Cuarentena Trabajando")
 #	xlabel!("Días")
 #	ylabel!("# personas")
-
-
 
 	f12 =plot(1:T-1,base_mQua2[1:end-1],label ="No testear", lw=3)
 	plot!(1:T-1,ideal_mQua2[1:end-1],label ="Simple, Todos los dias", lw=3)
