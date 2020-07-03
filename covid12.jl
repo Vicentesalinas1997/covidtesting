@@ -377,6 +377,7 @@ v=vecgroup(Group)
     mSy= zeros(N,T)
     mFSy=zeros(N,T)
 	mNTest=zeros(T)
+	mNTest2=zeros(T)
 	mNFpositive=zeros(T)
 maxInf=zeros(N,T)
 maxQua=zeros(N,T)
@@ -404,11 +405,11 @@ VInf2=zeros(N,T)
 	NTest=zeros(T) #Vector de test diarios
 	NTest2=zeros(T) #Vector de test diarios por la modalidad sintomaticos
 	NFpositive=zeros(T) #Falsos positivos diarios
-	NFpositive2=zeros(T) #Falsos positivos diarios
 	indicatriz=zeros(N,T) #Quienes testear de cada grupo caso random
 	resagados=zeros(N)
 	resagados2=zeros(N)
 	t_inicio=1
+	vector=[]
         # Loop over days
 	for t=1:T
 			su  = Su[:,t]
@@ -531,8 +532,8 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 ###################################con estos numeros se saca una muestra de minimo entre tamaño G y los que trabajan al azar. De momento esta descontinuado
 		if test_sym=="si"
 			for i in findall(sy.*(-qu.+1).==1)
-				NTest2[t]+=1   #Un test nuevo
 						if (su[i]==0)&(re[i]==0)
+									NTest2[t]+=1   #Un test nuevo
 									p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1,As[i],scalar_asint)
 									if rand() < p_positive #Caso positivo
 											Qu[i,Int(min(T,t+1)):Int(min(T,max(t+15,tRe[i]+3)))] .= 1 # if someone tests (false) positive, quarantined for 2 weeks
@@ -596,6 +597,8 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 							cand=[]
 						else
 							resagados2=zeros(N)
+							d=findall(f.==1)
+							frec=(d[2]-d[1])[2]
 							for i in 1:length(resagados)
 								if t-t_inicio==mod(i-1,frec)
 									resagados2[i]=resagados[i]
@@ -608,9 +611,13 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 				if (Politica=="Pool")
 					if f[t]==1
 						vector=pool(resagados,5)
+					else
+						vector=[]
 					end
 					if distribuir=="si"
 						resagados2=zeros(N)
+						d=findall(f.==1)
+						frec=(d[2]-d[1])
 						for i in 1:N
 							if t-t_inicio==mod(i-1,frec)
 								resagados2[i]=resagados[i]
@@ -857,6 +864,7 @@ end
 	mSy .+= Sy
 	mNFpositive .+= NFpositive
 	mNTest .+= NTest
+	mNTest2 .+= NTest2
 	maxi=max(   maximum(sum(maxInf,dims=1))  ,  maximum(sum(In[1:N,:],dims=1))   )
 	si=maximum(sum(maxInf,dims=1))==(maxi)
 	maxInf=In.*(1-si)+maxInf*si
@@ -879,11 +887,12 @@ end
     mFSy=mFSy/R
 	mNFpositive=mNFpositive/R
 	mNTest=mNTest/R
+	mNTest2=mNTest2/R
 	VInf1=VInf1/R
 	VInf2=VInf2/R
 
 
-    return mQua,mQua2,mInf,mInf2,mInf3, mNFpositive,  mNTest, mSy, maxInf, maxQua, maxSy, Infect, VInf1, VInf2
+    return mQua,mQua2,mInf,mInf2,mInf3, mNFpositive,  mNTest,mNTest2, mSy, maxInf, maxQua, maxSy, Infect, VInf1, VInf2
 end
 ################################################################################################################################################
 function leer(dict12)
@@ -1056,7 +1065,7 @@ open("parametros1.json", "r") do f
 end
 
 N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
-base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T, base_mSy,base_maxInf,base_maxQua, base_maxSy, base_Infect, base_VInf1, base_VInf2= simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
+base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T, base_T2,base_mSy,base_maxInf,base_maxQua, base_maxSy, base_Infect, base_VInf1, base_VInf2= simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
 
 
 
@@ -1068,7 +1077,7 @@ open("parametros2.json", "r") do f
 end
 
 N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
-ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T, ideal_mSy,ideal_maxInf,ideal_maxQua, ideal_maxSy, ideal_Infect, ideal_VInf1, ideal_VInf2= simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
+ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T,ideal_T2, ideal_mSy,ideal_maxInf,ideal_maxQua, ideal_maxSy, ideal_Infect, ideal_VInf1, ideal_VInf2= simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
 
 
 open("parametros3.json", "r") do f
@@ -1078,7 +1087,7 @@ open("parametros3.json", "r") do f
 end
 
 N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
-f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T, f1_mSy,f1_maxInf,f1_maxQua, f1_maxSy,f1_Infect, f1_VInf1, f1_VInf2 = simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
+f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T, f1_T2, f1_mSy,f1_maxInf,f1_maxQua, f1_maxSy,f1_Infect, f1_VInf1, f1_VInf2 = simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
 
 
 open("parametros4.json", "r") do f
@@ -1089,7 +1098,7 @@ open("parametros4.json", "r") do f
 end
 
 N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
-fr_mQua,fr_mQua2, fr_mInf,fr_mInf2,fr_mInf3, fr_mNFp, fr_T, fr_mSy,fr_maxInf,fr_maxQua, fr_maxSy, fr_Infect, fr_VInf1, fr_VInf2 = simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
+fr_mQua,fr_mQua2, fr_mInf,fr_mInf2,fr_mInf3, fr_mNFp, fr_T, fr_T2,fr_mSy,fr_maxInf,fr_maxQua, fr_maxSy, fr_Infect, fr_VInf1, fr_VInf2 = simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
 
 
 
@@ -1140,6 +1149,21 @@ end
 
 arrays=[[base_T],[ideal_T],[f1_T],[fr_T]]
 titulo="Test "
+x="Dias"
+y="Personas"
+for i in 1:length(graficogrupo)
+ggrafico=graficogrupo[i]
+nombreg=nombregrafico[i]
+g=graficar(arrays,Group,ggrafico,nombreg,NombresP,titulo,x,y,T)
+plot(g)
+savefig(titulo*string(i)*".pdf")
+g=[]
+end
+
+
+
+arrays=[[base_T2],[ideal_T2],[f1_T2],[fr_T2]]
+titulo="Test rapidos "
 x="Dias"
 y="Personas"
 for i in 1:length(graficogrupo)

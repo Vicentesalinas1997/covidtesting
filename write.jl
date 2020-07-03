@@ -1,4 +1,20 @@
 using JSON
+#Funcion que repite o corta un array hasta tener un cierto largo (al lado) y Ancho (abajo)####################################
+function repetir(array,A,L)
+ARRAY=zeros(A,L)
+l=length(array[1,:])
+a=length(array[:,1])
+	for ind in 1:A
+		ARRAY[ind,1:min(L,l)]=array[a-mod(-ind,a),1:min(L,l)]
+	end
+	if L>l
+		for indi in l+1:L
+			ARRAY[:,indi]=ARRAY[:,l-mod(-indi,l)]
+		end
+	end
+	return ARRAY
+end
+
 
 ############################################################
 
@@ -150,16 +166,18 @@ NombresP=["No testear","Simple, Todos los dias","Comparación","Simple, Cada 10 
 #################################################################################################################
 #print(N,m,Group,T,trab,Ftrab2,Mrel2, Frecuencia0,G,peak,t_peak,p_int,p_ext,γ,p_false_positive,R,"no","no",[],"grupo",z,dias_atras,scalar_asint,"no","no",[])
 
-
-
-
+Rand=zeros(T)
+for i in 1:T
+	if mod(i,5)==1
+		Rand[i]=1
+	end
+end
+Rand=Int.(Rand)
 ### Write data ####
 
 ###################
-
-#"testeo random"=>Dict("Porcentaje a testear por grupo"=>ones(S,T)*0.5,"Dias de testeo"=>ones(T) ,"Variar"=>0),
-#"testeo no random"=>Dict([])
-
+#"testeo random"=>Dict("Porcentaje a testear por grupo"=>ones(S,T)*0.5,"Dias de testeo"=>Rand ,"Variar"=>3),
+#"testeo no random"=>Dict([]), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 
 
 
@@ -167,7 +185,7 @@ NombresP=["No testear","Simple, Todos los dias","Comparación","Simple, Cada 10 
 dict1 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad de contagio int"=>(0.01*0.2*1/30),"Probabilidad de contagio ext"=>0,
 "Horario"=>trab[1:2,:])] for i=1:10]' [[Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
-"Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"No testear","Testear sintomaticos"=>"si",
+"Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"No testear","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
 "testeo no random"=>Dict([]), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"] )
@@ -182,13 +200,12 @@ dict2 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad 
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"])
 
 
-
 dict3 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad de contagio int"=>(0.01*0.2*(1/30)),"Probabilidad de contagio ext"=>0,
 "Horario"=>trab[1:2,:])] for i=1:10]' [[Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"Pool","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
-"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
+"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar),"Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"] )
 
 
@@ -215,7 +232,6 @@ stringdata4 = JSON.json(dict4)
 open("parametros1.json", "w") do f
     write(f, stringdata)
 end
-
 open("parametros2.json", "w") do f
     write(f, stringdata2)
 end
