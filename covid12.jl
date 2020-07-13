@@ -1,16 +1,16 @@
-using Distributions, Plots, LinearAlgebra, Random, StatsPlots,JSON
+using Distributions, Plots, LinearAlgebra, Random, StatsPlots,JSON, Mustache
 
 #######################################################################################
 #Recibe un grupo y entrega un vector con los indices de los grupos a los que pertenecen
 function vecgroup(group)
 S=Int(length(group[1,:]))
+N=Int(length(group[:,1]))
 A=zeros(N,S)
 v=zeros(N)
-for i in 1:N
-	for j in 1:S
-		if group[i,j]==1
+for j in 1:S
+	for i in findall(group[:,j].==1)
+		 group[i,j]==1
 			v[i]=j
-		end
 	end
 end
 return Int.(v)
@@ -212,11 +212,9 @@ function group_p(M_cont)
 	#W: Peligro de contagio de paciente
 	L=length(M_cont[1,:])
 	p=zeros(L)
-	for i in 1:L
-	p[i]=(1-prod(-M_cont[:,i].+1))
-	end
+	p=(-prod(-M_cont.+1,dims=1)).+1
 	#de no contagiarse multiplicado por un factor que pondera las horas, este desde
-	return p
+	return p'
 end
 
 #########################################################################################
@@ -330,8 +328,8 @@ end
 #Infect: Mayor número de infectados en el peak, por cada repeticion
 #VInf1: Numero de abuelitos infectados en promedio, por dia
 #VInf2: Numero de funcionarios infectados en promedio, por dia
-function simulation(N,Group,T,Tra,Mrel, f,G,peak,t_peak,p_int,p_ext,γ,p_false_positive,R,Politica,random,quienes,cuarentena,z,dias_atras,scalar_asint,test_sym,distribuir,frec)
-
+function simulation(N,Group,T,Tra,Mrel, f,G,peak,t_peak,p_int,p_ext,γ,p_false_positive,R,Politica,TP,random,quienes,cuarentena,z,dias_atras,scalar_asint,test_sym,distribuir,frec)
+print("Simulando")
 #N Tamaño grupo de trabajadores
 #Group una matriz con columnas indicatrices de tamaño N con los integrantes de cada grupo.
 #Tra; horario de los trabajadores
@@ -344,6 +342,7 @@ function simulation(N,Group,T,Tra,Mrel, f,G,peak,t_peak,p_int,p_ext,γ,p_false_p
 #p_false_positive probability of a false positive
 #R Replications
 #Politica dice si es "Pool", "Individual" o "No testear".
+#TP: Tamanaño Pool
 #Tra: Matriz (2*N,T) de turnos de trabajo
 #random: Si es random o estan fijos a quienes se testeara (no los dias esos estan en f, solo los funcionarios a testear)
 #quienes: trabajando, no trabajando y ambos
@@ -389,7 +388,7 @@ VInf2=zeros(N,T)
 
     # Loop over replications
     for rep = 1:R
-	print(rep) #Lo uso para saber si corre
+		print(rep)
 	Mint=interaciones(Group,Mrel,T,v) # Matriz de interacciones para cada repetición
         tEx =zeros(N) # time of exposure
 		tIn =zeros(N) # time of infecciousness
@@ -490,7 +489,8 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 
 ##########################################################################################
 #Se realiza el proceso de cambio en los estados de los nuevos infectados
-           	for i in findall(new_inf.==1)                   # cicle over newly infected
+           	for j in findall(new_inf.==1)                   # cicle over newly infected
+				i=j[1]
 				if i<=N #Infectados nuevos por dia
 					VInf1[t]+=1
 				else
@@ -532,7 +532,6 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 ###################################con estos numeros se saca una muestra de minimo entre tamaño G y los que trabajan al azar. De momento esta descontinuado
 		if test_sym=="si"
 			for i in findall(sy.*(-qu.+1).==1)
-						if (su[i]==0)&(re[i]==0)
 									NTest2[t]+=1   #Un test nuevo
 									p_positive = true_positive(t-tEx[i]+1, tIn[i]-tEx[i]+1, tSy[i]-tEx[i]+1, tRe[i]-tEx[i]+1,As[i],scalar_asint)
 									if rand() < p_positive #Caso positivo
@@ -552,7 +551,6 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 														end
 											end
 									end
-						end
 			end
 		end
 		if random=="si" #Se realiza test al azar
@@ -610,7 +608,7 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 	    		end
 				if (Politica=="Pool")
 					if f[t]==1
-						vector=pool(resagados,5)
+						vector=pool(resagados,TP)
 					else
 						vector=[]
 					end
@@ -623,7 +621,7 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 								resagados2[i]=resagados[i]
 							end
 						end
-						vector=pool(resagados2,5)
+						vector=pool(resagados2,TP)
 					end
 					if length(vector)>=1
 						for cand in vector
@@ -745,7 +743,7 @@ new_inf+=qu.*su.*(r.<(p_ext)) #Sumar infectados en cuarentena (falsos positivos)
 	    		end
 				if Politica=="Pool" #Esta medio obsoleto
 					h=(sum(Sy[:,1:max((t-2),1)],dims=2).==0 ).*f[:,t].*(-qu.+1)
-					vector=pool(h,5)
+					vector=pool(h,TP)
 					if length(vector)>=1
 						for cand in vector
 							pp=zeros(N)
@@ -934,6 +932,7 @@ function leer(dict12)
 		if length(Testrand)>=1
 			test="si"
 			Testgrupo=zeros(S,T)
+			TP=Testrand["Tamaño"]
 			for t in 1:T
 				Testgrupo[:,t]=Testrand["Porcentaje a testear por grupo"][t]
 			end
@@ -962,6 +961,7 @@ function leer(dict12)
 		end
 		if length(Testnorand)>=1
 			test="no"
+			TP=Testnorand["Tamaño"]
 			Diastest=zeros(Integrantes,T)
 			for t in 1:T
 				Diastest[:,t]=Testnorand["Dias de testeo"][t]
@@ -976,6 +976,7 @@ function leer(dict12)
 		Testrand=[]
 		Testnorand=[]
 		Testgrupo=[]
+		TP=[]
 		Variar=[]
 		Diastest=zeros(Integrantes,T)
 		quienes=[]
@@ -1000,7 +1001,7 @@ function leer(dict12)
 
 
 
-return N, Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico
+return N, Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,TP,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico
 
 
 end
@@ -1029,7 +1030,7 @@ function graficar(arrays,Group,ggrafico,nombreg,NombresP,titulo,x,y,T)
 			plot!(1:T,arr,label=NombresP[a],lw=3)
 		end
 	end
-	title!(titulo*string(nombreg)*" N= "*string(sum(Indices)) )
+	title!(titulo*" "*string(nombreg)*" N= "*string(sum(Indices)) )
 	xlabel!(x)
 	ylabel!(y)
 	return grafico
@@ -1045,69 +1046,79 @@ end
 
 	###############################################################################
 	#Se realizan las 4 politicas
-politicas=4 #Numero de politicas
-NombresP=["No testear","Simple, Todos los dias","Comparación","Simple, Cada 10 dias"]#Nombres politicas
+#politicas=4 #Numero de politicas
+#NombresP=["No testear","Simple, Todos los dias","Comparación","Simple, Cada 10 dias"]#Nombres politicas
 t_peak=ones(120)*24                 #Tiempo peak de contagio
 scalar_asint=1          #Escalar para los asintomaticos
 peak=[(ones(100)*0.01)' (ones(20)*0.2)']' #Prob peak de infeccion
 
 
-
-
+Caso=string(readdir("Leer")[1])
+	mv("Leer/"*Caso,"Guardar/"*Caso)
 dict12 = Dict()
-
-
-open("parametros1.json", "r") do f
-
+ff=1
+for json in filter(x -> endswith(x, ".json"), readdir("Guardar/"*Caso))
+global N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico
+open("Guardar/"*Caso*"/"*string(json), "r") do f
     global dict12
     dicttxt1 = read(f,String)  # file information to string
     dict12=JSON.parse(dicttxt1)  # parse and transform data
 end
 
-N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
-base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T, base_T2,base_mSy,base_maxInf,base_maxQua, base_maxSy, base_Infect, base_VInf1, base_VInf2= simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
-
-
-
-open("parametros2.json", "r") do f
-
-    global dict12
-    dicttxt1 = read(f,String)  # file information to string
-    dict12=JSON.parse(dicttxt1)  # parse and transform data
+N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,TP,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
+if ff==1
+	global ff, base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T, base_T2,base_mSy,base_maxInf,base_maxQua, base_maxSy, base_Infect, base_VInf1, base_VInf2
+base_mQua,base_mQua2, base_mInf,base_mInf2,base_mInf3, base_mNFp, base_T, base_T2,base_mSy,base_maxInf,base_maxQua, base_maxSy, base_Infect, base_VInf1, base_VInf2= simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,TP,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
 end
-
-N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
-ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T,ideal_T2, ideal_mSy,ideal_maxInf,ideal_maxQua, ideal_maxSy, ideal_Infect, ideal_VInf1, ideal_VInf2= simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
-
-
-open("parametros3.json", "r") do f
-    global dict12
-    dicttxt1 = read(f,String)  # file information to string
-    dict12=JSON.parse(dicttxt1)  # parse and transform data
+if ff==2
+	global ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T,ideal_T2, ideal_mSy,ideal_maxInf,ideal_maxQua, ideal_maxSy, ideal_Infect, ideal_VInf1, ideal_VInf2
+ideal_mQua,ideal_mQua2, ideal_mInf,ideal_mInf2,ideal_mInf3, ideal_mNFp, ideal_T,ideal_T2, ideal_mSy,ideal_maxInf,ideal_maxQua, ideal_maxSy, ideal_Infect, ideal_VInf1, ideal_VInf2= simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,TP,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
 end
-
-N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
-f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T, f1_T2, f1_mSy,f1_maxInf,f1_maxQua, f1_maxSy,f1_Infect, f1_VInf1, f1_VInf2 = simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
-
-
-open("parametros4.json", "r") do f
-
-    global dict12
-    dicttxt1 = read(f,String)  # file information to string
-    dict12=JSON.parse(dicttxt1)  # parse and transform data
+if ff==3
+	global f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T, f1_T2, f1_mSy,f1_maxInf,f1_maxQua, f1_maxSy,f1_Infect, f1_VInf1, f1_VInf2
+f1_mQua,f1_mQua2, f1_mInf,f1_mInf2,f1_mInf3, f1_mNFp, f1_T, f1_T2, f1_mSy,f1_maxInf,f1_maxQua, f1_maxSy,f1_Infect, f1_VInf1, f1_VInf2 = simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,TP,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
 end
-
-N,Group,T,Horario,Mrel, Diastest,Testgrupo,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,TestSyn,distribuir,graficogrupo,nombregrafico=leer(dict12)
-fr_mQua,fr_mQua2, fr_mInf,fr_mInf2,fr_mInf3, fr_mNFp, fr_T, fr_T2,fr_mSy,fr_maxInf,fr_maxQua, fr_maxSy, fr_Infect, fr_VInf1, fr_VInf2 = simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
-
-
-
-
+if ff==4
+	global fr_mQua,fr_mQua2, fr_mInf,fr_mInf2,fr_mInf3, fr_mNFp, fr_T, fr_T2,fr_mSy,fr_maxInf,fr_maxQua, fr_maxSy, fr_Infect, fr_VInf1, fr_VInf2
+fr_mQua,fr_mQua2, fr_mInf,fr_mInf2,fr_mInf3, fr_mNFp, fr_T, fr_T2,fr_mSy,fr_maxInf,fr_maxQua, fr_maxSy, fr_Infect, fr_VInf1, fr_VInf2 = simulation(N,Group,T,Horario,Mrel, Diastest,Testgrupo,peak,t_peak,p_int,p_ext,Porasint,Probfp,Repeticiones,Politica,TP,test,quienes,Cuaren,Diascuarentena,Diasatras,scalar_asint,TestSyn,distribuir,[])
+end
+ff+=1
+end
 ###############################################################################
 ###############Graficos########################################################
-
-	arrays=[[base_mQua],[ideal_mQua],[f1_mQua],[fr_mQua]]
-	titulo="Cuarentena "
+if ff==2
+	arrays=[[base_mQua2]]
+	NombresP=["a"]
+	TestP=[sum(base_T)]
+	A=[Dict()]
+end
+if ff==3
+	arrays=[[base_mQua2],[ideal_mQua2]]
+	NombresP=["a","b"]
+	TestP=[sum(base_T),sum(ideal_T)]
+	A=[Dict(),Dict()]
+end
+if ff==4
+	arrays=[[base_mQua2],[ideal_mQua2],[f1_mQua2]]
+	NombresP=["a","b","c"]
+	TestP=[sum(base_T),sum(ideal_T),sum(f1_T)]
+	A=[Dict(),Dict(),Dict()]
+end
+if ff==5
+	arrays=[[base_mQua2],[ideal_mQua2],[f1_mQua2],[fr_mQua2]]
+	NombresP=["a","b","c","d"]
+	TestP=[sum(base_T),sum(ideal_T),sum(f1_T),sum(fr_T)]
+	A=[Dict(),Dict(),Dict(),Dict()]
+end
+cont=1
+for json in filter(x -> endswith(x, ".json"), readdir("Guardar/"*Caso))
+	global cont
+NombresP[cont]=json[1:end-5]
+A[cont]=Dict("Politica"=>NombresP[cont],"Test"=>Int.(floor.(TestP[cont])),"Caso"=>[])
+cont+=1
+end
+A[1]["Caso"]=Caso
+	titulo="Cuarentena"
 	x="Dias"
 	y="Personas"
 for i in 1:length(graficogrupo)
@@ -1115,13 +1126,23 @@ for i in 1:length(graficogrupo)
 	nombreg=nombregrafico[i]
 	g=graficar(arrays,Group,ggrafico,nombreg,NombresP,titulo,x,y,T)
 	plot(g)
-	savefig(titulo*string(i)*".pdf")
+	savefig("Guardar/"*Caso*"/"*titulo*string(i)*".pdf")
 	g=[]
 end
 
-
-arrays=[[base_mInf],[ideal_mInf],[f1_mInf],[fr_mInf]]
-titulo="Infectados Trabajando "
+if ff==2
+	arrays=[[base_mInf]]
+end
+if ff==3
+	arrays=[[base_mInf],[ideal_mInf]]
+end
+if ff==4
+	arrays=[[base_mInf],[ideal_mInf],[f1_mInf]]
+end
+if ff==5
+	arrays=[[base_mInf],[ideal_mInf],[f1_mInf],[fr_mInf]]
+end
+titulo="Infectados_Trabajando"
 x="Dias"
 y="Personas"
 for i in 1:length(graficogrupo)
@@ -1129,13 +1150,24 @@ ggrafico=graficogrupo[i]
 nombreg=nombregrafico[i]
 g=graficar(arrays,Group,ggrafico,nombreg,NombresP,titulo,x,y,T)
 plot(g)
-savefig(titulo*string(i)*".pdf")
+savefig("Guardar/"*Caso*"/"*titulo*string(i)*".pdf")
 g=[]
 end
 
 
-arrays=[[base_mInf3],[ideal_mInf3],[f1_mInf3],[fr_mInf3]]
-titulo="Infectados "
+if ff==2
+	arrays=[[base_mInf3]]
+end
+if ff==3
+	arrays=[[base_mInf3],[ideal_mInf3]]
+end
+if ff==4
+	arrays=[[base_mInf3],[ideal_mInf3],[f1_mInf3]]
+end
+if ff==5
+	arrays=[[base_mInf3],[ideal_mInf3],[f1_mInf3],[fr_mInf3]]
+end
+titulo="Infectados"
 x="Dias"
 y="Personas"
 for i in 1:length(graficogrupo)
@@ -1143,12 +1175,28 @@ ggrafico=graficogrupo[i]
 nombreg=nombregrafico[i]
 g=graficar(arrays,Group,ggrafico,nombreg,NombresP,titulo,x,y,T)
 plot(g)
-savefig(titulo*string(i)*".pdf")
+savefig("Guardar/"*Caso*"/"*titulo*string(i)*".pdf")
 g=[]
 end
 
-arrays=[[base_T],[ideal_T],[f1_T],[fr_T]]
-titulo="Test "
+
+graficogrupo=[1:length(Group[1,:])]
+nombregrafico=["Total"]
+
+
+if ff==2
+	arrays=[[base_T]]
+end
+if ff==3
+	arrays=[[base_T],[ideal_T]]
+end
+if ff==4
+	arrays=[[base_T],[ideal_T],[f1_T]]
+end
+if ff==5
+	arrays=[[base_T],[ideal_T],[f1_T],[fr_T]]
+end
+titulo="Test"
 x="Dias"
 y="Personas"
 for i in 1:length(graficogrupo)
@@ -1156,14 +1204,25 @@ ggrafico=graficogrupo[i]
 nombreg=nombregrafico[i]
 g=graficar(arrays,Group,ggrafico,nombreg,NombresP,titulo,x,y,T)
 plot(g)
-savefig(titulo*string(i)*".pdf")
+savefig("Guardar/"*Caso*"/"*titulo*string(i)*".pdf")
 g=[]
 end
 
 
 
-arrays=[[base_T2],[ideal_T2],[f1_T2],[fr_T2]]
-titulo="Test rapidos "
+if ff==2
+	arrays=[[base_T2]]
+end
+if ff==3
+	arrays=[[base_T2],[ideal_T2]]
+end
+if ff==4
+	arrays=[[base_T2],[ideal_T2],[f1_T2]]
+end
+if ff==5
+	arrays=[[base_T2],[ideal_T2],[f1_T2],[fr_T2]]
+end
+titulo="Test_rapidos"
 x="Dias"
 y="Personas"
 for i in 1:length(graficogrupo)
@@ -1171,6 +1230,186 @@ ggrafico=graficogrupo[i]
 nombreg=nombregrafico[i]
 g=graficar(arrays,Group,ggrafico,nombreg,NombresP,titulo,x,y,T)
 plot(g)
-savefig(titulo*string(i)*".pdf")
+savefig("Guardar/"*Caso*"/"*titulo*string(i)*".pdf")
 g=[]
 end
+
+
+############################################################################
+
+
+
+tmpl = mt"""
+
+\documentclass[opre]{PDF/informs3}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+
+\usepackage[dvipsnames]{xcolor}
+\usepackage{multirow}
+\usepackage{verbatim,wrapfig,latexsym,graphicx,psfrag,amsfonts,amsmath,amssymb}
+\usepackage{hyperref,multirow,color,subfigure,comment,pdfsync,setspace,thmtools,thm-restate}
+\usepackage{enumerate,enumitem,tikz,pdfpages,xspace,multirow,algorithmic,algorithm}
+
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Pb}{\mathbb{P}}
+\newcommand{\Real}{\mathbb{R}}
+\newcommand{\Natu}{\mathbb{N}}
+\newcommand{\Int}{\mathbb{Z}}
+\newcommand{\set}[1]{\left\{#1\right\}}
+\newcommand{\eexp}[1]{e^{#1}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\bra}[1]{\left(#1\right)}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\setnorm}[2]{\|#1\|_{#2}}
+\newcommand{\ind}[1]{\mathbf{1}\set{#1}}
+\newcommand{\sgn}[1]{\text{sign}\bra{#1}}
+\newcommand{\crs}[2]{#1 \cdot #2}
+\newcommand{\eqq}{:=}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\tablehighlight}[1]{\underline{\textbf{#1}}}
+\DeclareMathOperator{\inte}{int}
+\DeclareMathOperator{\conv}{conv}
+\DeclareMathOperator{\supp}{supp}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\spn}{span}
+\DeclareMathOperator{\vol}{vol}
+\DeclareMathOperator{\var}{Var}
+
+\newcommand{\Nscr}{\mathcal{N}}
+\newcommand{\Tscr}{\mathcal{T}}
+\newcommand{\Sscr}{\mathcal{S}}
+
+
+\newcommand{\brown}[1]{{\color{brown} #1}}
+
+\TheoremsNumberedThrough
+\ECRepeatTheorems
+
+\EquationsNumberedThrough
+
+\begin{document}
+\RUNAUTHOR{Reporte ISCI}
+
+\RUNTITLE{Cuarentena para equipos m\'edicos}
+
+\TITLE{}
+
+\ARTICLEAUTHORS{
+\AUTHOR{}
+}
+
+\ABSTRACT{
+...
+}
+
+\KEYWORDS{}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{wrapfigure}{l}{4.5cm}
+\includegraphics[width=4.5cm]{PDF/logo_ISCI.pdf}
+\vspace{-1cm}
+\end{wrapfigure}
+ \hspace{7cm} Santiago, \today \\
+\vspace{1cm}
+
+\begin{center}
+\noindent \textbf{{\Reporte comparación de politicas}}\\
+\end{center}
+\textbf{Comparación de Políticas}\\
+Comparando las politicas se obtiene que: {{#:A}} {{Politica}} tiene  {{Test}} test realizados {{/:A}}.\\
+
+\begin{center}
+    \includegraphics[scale=0.45]{Guardar/{{#:A}}{{Caso}}{{/:A}}/Test1.pdf}
+\end{center}
+
+\textbf{Motivación}\\
+Debido a la necesidad observada por parte del equipo en encontrar y comparar más estrategias de prevención de contagios por covid, hemos desarrollado un programa de simulación, el cual busca ser un gran aporte para la sociedad permitiendo tomar decisiones más informados comparando estrategias que se adapten mejor a los intereses y necesidades.\\
+\textbf{Problema}\\
+
+Uno de los mayores problemas que hemos detectado es la función principal que se les esta dando a los test PCR, pues es para diferenciar los casos sospechosos y para confirmar los casos positivos, se cree que esto es por los costos que tiene realizar estas pruebas y por lo tanto se ha priorizado estos usos. Pero esto trae consigo consecuencias como son una detección tardía de los casos sintomáticos, pues según un estudio de nature ("aquí habría que citar al paper de nature") el momento de mayor contagio de los infectados en unos días previos a la aparición de los síntomas. Otra consecuencia es la aplicación de medidas de cuarentenas a grupos de contacto estrecho, con el fin de reducir el número de contagios, pero para los casos de trabajo esencial estas disminuciones de personal pueden ser sumamente costosas y perjudiciales para el funcionamiento de Hospitales, recintos de salud, entre otras.\\
+\textbf{Que son los Pool testing} (Dependiendo el público al que esta dirigido deberíamos ver si lo explicamos)\\
+
+Los Pool testing consisten en pruebas PCR a grupos de individuos a diferencia de las tradicionales que se toman de manera individual, esto permite con un menor costo abarcar en la mayoría de casos un mayor número de pruebas a individuos. La validación de esta técnica de pruebas, se encuentra detallada en el ("paper del estudio de la chile"). Al momento de utilizar este tipo de test es de suma importancia un conocimiento previo de la prevalencia esperada para escoger adecuadamente el tamaño de estos grupos, pues en caso de que uno de estos test entrege un resultado positivo habrá que realizar de manera individual el test a todos los integrantes de esa muestra con el fin identificar a la o las personas infectadas. \\
+\textbf{Beneficios de la aplicación  de pruebas periódicas preventivas con Pool testing }\\
+
+Es sumamente beneficiosa para la sociedad, pues en primer lugar permite detectar casos asintomáticos, esto consideramos que es algo sumamente importante, pues los casos asintomáticos se estima que son al menos un $30\% + \int_0^{\infty}$  de la población, sobre estos porcentajes no existe un mayor acuerdo, pues es muy difícil de determinar con las estrategias de pruebas actuales, pero la aplicación de pruebas preventivas traerá consigo una mayor información al ir descubriendo estos casos. Otro beneficio es la posibilidad de una detección temprana para los casos sintomáticos, es decir, antes de que estos alcancen su peak de infecciosidad. Esto puede ser un beneficio crucial, pues a diferencia del peak de las otras enfermedades respiratorias que es posterior a los síntomas, una cuarentena posterior a los síntomas tiene un impacto mucho menor. El uso de pool testing es la principal razón de la factibilidad de estas pruebas preventivas, pues en escenarios de baja prevalencia permite una disminución considerable en el número de test utilizados, pues al contrario de los test tradicionales en los cuales se realiza un test por persona, los pool testing permiten realizar un test a 5 o mas personas en simultaneo con una efectividad   similar. Esto es clave para la aplicación de pruebas regulares, pues el realizar estas pruebas involucra un aumento en el número de test, pero junto con la aplicación de pool testing estos números son sumamente factibles. Estas pruebas preventivas abren una gama de posibles combinaciones y estrategias que permiten tomar una mejores decisiones al momento de decidir sobre las cuarentenas y el uso estratégico de los test que se dispongan, pudiendo disminuir el personal en cuarentena al evaluar los riesgos, probar diferentes combinaciones de turnos de trabajo que al combinarlas con la aplicación periódica de test, genere una mayor seguridad para los trabajadores, entre otras.\\
+\textbf{Simulaciones de políticas}\\
+
+Para realizar estas comparaciones hemos desarrollado un programa el cual con algunos supuestos permite la simulación de un escenario con una cantidad predefinidas de trabajadores, en el cual calibrando las probabilidades de contagio basándose en los riesgos a los que estos trabajadores estarán expuestos, permite simular y comparar distintas políticas de cuarentena (grupos de contacto estrecho, individuos solos, escoger la duración de las cuarentenas) y diversas decisiones a la hora de distribuir y tomar los test (aplicar test grupales, test individuales, test a las personas que presentan síntomas, tomar test todas las semanas, entre otras). Esto permite a los usuarios tomar una mejor decisión, pues no tendrán que apostar por alguna estrategia sin medir los impactos que esta puede traer, pues podrán evaluar de manera segura las ventajas y desventajas de una política sobre otra, ya sea en el número de test esperado que se utilice, en la cantidad máxima de infectados, en las personas en cuarentena, entre otras.\\
+\textbf{Explicación del seudocódigo-simulación (supuestos, parámetros-instancias)
+}\\
+
+\textbf{El programa presenta los siguiente supuesto:}\\
+- Se considerara que la gente infectada no puede volver a infectarse.
+- Si un individuo presenta síntomas por más de dos días, este sera enviado a cuarentena sin necesidad de realizar un test.\\
+- Las personas que entran en cuarentena no son reemplazadas.\\
+- Resultados de test, infecciocidad, incubación, entre otros. Son independientes de la manifestación de síntomas.\\
+- Los resultados del test se  conocen al final del día.\\
+- Tiempo de incubación (lognormal) y recuperación (uniforme 2-4 semanas).\\
+- La probabilidad de resultado positivo sigue curva publicada en Jama, ajustada a la evolución de la infección en el paciente.\\
+-La infecciosidad es una versión escalada de la curva de positividad.\\
+\textbf{Principales parámetros para generar una simulación, estos son valores que se pueden modificar a interés del usuario:}\\
+-\textbf{Matriz de turnos de trabajo:} día y noche.\\
+-\textbf{Matriz de interacciones:} La coordenada i,j contiene la probabilidad de interacción (contagio) entre un individuos el grupo i con uno del grupo j. \\
+-\textbf{Grupos:} Conjunto de individuos que coinciden en la posibilidad de interacción con los grupos.\\
+-\textbf{Matriz de testeo:} Días en que se testea cada individuo.\\
+-\textbf{Tipo de test:} individual, grupal, no testear.\\
+-\textbf{Definir previamente los test:} La simulación permite definir previamente a que individuos testear cada día o si se desea entregar un porcentaje por grupo y de manera aleatoria se escogerá este. Siempre sujeto a si la persona esta en cuarentena.\\
+-\textbf{Eficiencia test:} prob. falsos positivos (scalar) y falsos negativos (curva).\\
+-\textbf{Asintomáticos:} (scalar, estático) fracción de la población.\\
+-\textbf{Políticas de cuarentena:} al resultado positivo, al grupo de contactos estrecho  del positivo y/o por cierta cantidad de días.\\
+
+Algunos parámetros más que se pueden modificar son la probabilidades de contagio por factores externos, si se desea solo testear al personal trabajando, la cantidad de días de simulación ,entre otros más. Con estos datos se realiza una simulación
+en la cual se ve la evolución diaria del número de personas infectados (no descubiertos, en cuarentena y en total), personas en cuarentena, personas con síntomas y número de test realizados. Mediante la siguiente secuencia temporal:
+Cada día\\
+En t=0, designa qué personas serán asintomáticas.\\
+Se calculan las probabilidades de infección de todos, para ese día.\\
+Se realizan los contagios de los trabajadores (tiempos individuales de incubación y recuperación) .\\
+Se ejecuta la política de testeo. Dependiendo de los resultados, y desarrollo de síntomas, se ejecuta la política de cuarentena
+el número de infectados, personas en cuarentena, personas con síntomas y test realizados.\\
+Se procede al siguiente día.\\
+En base a esta información los usuarios podrían saber que políticas les son factibles y entre ellas cual se adapta mejor a sus intereses. \\
+\textbf{ejemplificar con 2 instancias (asilos y centros médicos)}\\
+\textbf{Asilo}\\
+Para simular el piloto realizado por el ISCI en los asilos "......" y ".....", se utilizaron los siguientes parámetros: \\
+- \\
+-\\
+-\\
+-\\
+-\\
+Con esto se obtuvieron los siguientes gráficos:\\ (Para graficar falta definir un horario para los funcionarios y una matriz de interacción)
+-\\
+-\\
+-\\
+En estos se puede observar que ......
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\end{document}
+
+"""
+
+  rendered = render(tmpl,A=A)
+  filename = string("Guardar/"*Caso*"/Reporte"*Caso*".tex")
+  open(filename, "w") do file
+    write(file, rendered)
+  end
+  run(`pdflatex $filename`)
+
+ mv("Reporte"*Caso*".pdfsync","Guardar/"*Caso*"/Reporte"*Caso*".pdfsync")
+ mv("Reporte"*Caso*".out","Guardar/"*Caso*"/Reporte"*Caso*".out")
+ mv("Reporte"*Caso*".pdf","Guardar/"*Caso*"/Reporte"*Caso*".pdf")
+ mv("Reporte"*Caso*".log","Guardar/"*Caso*"/Reporte"*Caso*".log")
+ mv("Reporte"*Caso*".aux","Guardar/"*Caso*"/Reporte"*Caso*".aux")

@@ -30,7 +30,7 @@ p_int = [(ones(N)*0.01*(1/30)*0.2)' zeros(m)']'   #probabilidad interna de conta
 p_ext = [zeros(N)' (ones(m).*0.01)']'     #probabilidad externa de contagio
 γ = 0.3 #(antes 0.25)           # prop of asymtomatic pop
 p_false_positive = 0.01 # probability of a false positive
-R = 500 # Replications
+R = 200 # Replications
 peak=[(ones(N)*0.01)' (ones(m)*0.2)']' #Prob peak de infeccion
 S2=Int(m/2)     #Grupos de tipo 1
 S1=Int(N/S2)   #Grupos de tipo 2
@@ -173,7 +173,86 @@ for i in 1:T
 	end
 end
 Rand=Int.(Rand)
+##############################################################################
+###################Reportes asilo#############################################
+#############################################################################
+#########Horario Hospital####################################################
+HorHos=zeros(2*54,100)
+for t in 1:100
+	for i in 1:4
+	if (mod(t,12)==mod(1+(i-1)*3,12))|(mod(t,12)==mod(3+(i-1)*3,t))
+		HorHos[Int(2*(i-1)+1):Int(2*i),t]=ones(2)
+	end
+	end
+	for j in 1:50
+	if mod(j,4)==1
+		if (mod(t,8)==1)|(mod(t,8)==2)
+
+			HorHos[4*2+2*j-1,t]=1
+		end
+		if (mod(t,8)==3)|(mod(t,8)==4)
+			HorHos[4*2+2*j,t]=1
+		end
+	end
+	if mod(j,4)==2
+		if (mod(t,8)==5)|(mod(t,8)==6)
+			HorHos[4*2+2*j-1,t]=1
+		end
+		if (mod(t,8)==7)|(mod(t,8)==0)
+			HorHos[4*2+2*j,t]=1
+		end
+	end
+
+	if mod(j,4)==3
+		if (mod(t,8)==1)|(mod(t,8)==2)
+			HorHos[4*2+2*j,t]=1
+		end
+		if (mod(t,8)==3)|(mod(t,8)==4)
+			HorHos[4*2+2*j-1,t]=1
+		end
+	end
+	if mod(j,4)==0
+		if (mod(t,8)==5)|(mod(t,8)==6)
+			HorHos[4*2+2*j,t]=1
+		end
+		if (mod(t,8)==7)|(mod(t,8)==0)
+			HorHos[4*2+2*j-1,t]=1
+		end
+	end
+end
+end
+###############################################################################
+
+################################################################################
+###########################Horario Asilo#######################################
+###############################################################################
+HorAsi=zeros(2*50,100)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ### Write data ####
+
+
+
+
+
+
+
+
+
+
 
 ###################
 #"testeo random"=>Dict("Porcentaje a testear por grupo"=>ones(S,T)*0.5,"Dias de testeo"=>Rand ,"Variar"=>3),
@@ -185,7 +264,7 @@ Rand=Int.(Rand)
 dict1 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad de contagio int"=>(0.01*0.2*1/30),"Probabilidad de contagio ext"=>0,
 "Horario"=>trab[1:2,:])] for i=1:10]' [[Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
-"Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"No testear","Testear sintomaticos"=>"no",
+"Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"No testear","Testear sintomaticos"=>"si",
 "testeo random"=>Dict([]),
 "testeo no random"=>Dict([]), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"] )
@@ -194,9 +273,9 @@ dict1 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad 
 dict2 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad de contagio int"=>(0.01*0.2*(1/30)),"Probabilidad de contagio ext"=>0,
 "Horario"=>trab[1:2,:])] for i=1:10]' [[Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
-"Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"Pool","Testear sintomaticos"=>"no",
+"Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"Individual","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
-"testeo no random"=>Dict("Dias de testeo"=>Frecuencia12), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
+"testeo no random"=>Dict("Dias de testeo"=>Frecuencia12,"Tamaño"=>0), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"])
 
 
@@ -205,7 +284,7 @@ dict3 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad 
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"Pool","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
-"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar),"Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
+"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar,"Tamaño"=>5),"Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"] )
 
 
@@ -214,10 +293,31 @@ dict4 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad 
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"Pool","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
-"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar4), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
+"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar4,"Tamaño"=>5), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"] )
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 # pass data as a json string (how it shall be displayed in a file)
+
+
+
+
+
+
+
+
 
 
 stringdata = JSON.json(dict1)
