@@ -264,7 +264,7 @@ HorAsi=zeros(2*50,100)
 dict1 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad de contagio int"=>(0.01*0.2*1/30),"Probabilidad de contagio ext"=>0,
 "Horario"=>trab[1:2,:])] for i=1:10]' [[Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
-"Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"No testear","Testear sintomaticos"=>"si",
+"Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"No testear","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
 "testeo no random"=>Dict([]), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"] )
@@ -275,7 +275,7 @@ dict2 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad 
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"Individual","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
-"testeo no random"=>Dict("Dias de testeo"=>Frecuencia12,"Tamaño"=>0), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
+"testeo no random"=>Dict("Dias de testeo"=>Frecuencia12,"tpool"=>0), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"])
 
 
@@ -284,7 +284,7 @@ dict3 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad 
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"Pool","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
-"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar,"Tamaño"=>5),"Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
+"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar,"tpool"=>5),"Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"] )
 
 
@@ -293,7 +293,7 @@ dict4 = Dict("Tiempo"=>T,"Grupos"=>[[[Dict("Numero de copias"=>10,"Probabilidad 
 "Horario"=>Ftrab2[2*j-1:2*j,:]),Dict("Numero de copias"=>1,"Probabilidad de contagio int"=>0,"Probabilidad de contagio ext"=>0.01,
 "Horario"=>Ftrab2[20+2*j-1:20+2*j,:])] for j=1:10]']',"Matriz grupos"=>Mrel2,"Politica de testeo"=>"Pool","Testear sintomaticos"=>"no",
 "testeo random"=>Dict([]),
-"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar4,"Tamaño"=>5), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
+"testeo no random"=>Dict("Dias de testeo"=>Frecuenciar4,"tpool"=>5), "Repeticiones"=>R, "Porcentaje asintomaticos"=>0.3,
 "Probabilidad falso positivo"=>0.01, "Cuarentena"=>Dict("Tipo"=>"solo","Dias atras"=>0,"Dias cuarentena"=>0),"Grupos grafico"=>[[1 2 3 4 5 6 7 8 9 10],[11 12 13 14 15 16 17 18 19 20]],"Nombres grupos"=>["Ancianos", "Funcionarios"] )
 
 
